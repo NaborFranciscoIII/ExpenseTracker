@@ -1,0 +1,5 @@
+{
+  "appId": "com.portfolio.expensetracker",
+  "appName": "Expense Tracker",
+  "webDir": "dist"
+}

@@ -1,0 +1,18 @@
+# Dependency directories
+node_modules/
+.pnpm-store/
+
+# Production web build outputs
+dist/
+
+# Android build artifacts & local variables
+android/.gradle/
+android/build/
+android/app/build/
+android/local.properties
+.gradle/
+
+# IDE / System files
+.DS_Store
+Thumbs.db
+.vscode/
