@@ -1,7 +1,6 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useNavigate } from "react-router";
 import { useExpenses } from "../contexts/expense-context";
-import { useAuth } from "../contexts/auth-context";
 import { useTheme } from "../contexts/theme-context";
 import { useCarousel } from "../hooks/use-carousel";
 import { Button } from "./ui/button";
@@ -9,7 +8,7 @@ import { Input } from "./ui/input";
 import { Label } from "./ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "./ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
-import { Moon, Sun, TrendingUp, TrendingDown, ArrowUpRight, ArrowDownRight, ChevronLeft, ChevronRight, Plus } from "lucide-react";
+import { Moon, Sun, TrendingUp, TrendingDown, ArrowUpRight, ArrowDownRight, ChevronLeft, ChevronRight, Plus, Wallet } from "lucide-react";
 import { motion } from "motion/react";
 import { AreaChart, Area, ResponsiveContainer, Tooltip, XAxis } from "recharts";
 
@@ -32,14 +31,19 @@ function fmt(n: number, currency: string = "PHP") {
   }).format(n);
 }
 
-
 export function HomePage() {
-  // Place these lines at the top of your HomePage component function
   const navigate = useNavigate();
-  const { months, accounts, loading, fetchFinanceData, addMonth, getTotalSavings, getMonthlySavingsHistory, getAllRecentTransactions, getMonthTotals} = useExpenses();
+  const { 
+    months, 
+    accounts, 
+    addMonth, 
+    getTotalSavings, 
+    getMonthlySavingsHistory, 
+    getMonthTotals,
+    getAccountAllTimeBalance,
+    getAccountLatestTransaction
+  } = useExpenses();
   const { theme, toggleTheme } = useTheme();
-
-fetchFinanceData();
 
   const [addMonthOpen, setAddMonthOpen] = useState(false);
   const [newMonthName, setNewMonthName] = useState("January");
@@ -47,7 +51,6 @@ fetchFinanceData();
 
   const totalSavings = getTotalSavings();
   const history = getMonthlySavingsHistory();
-  const recentTx = getAllRecentTransactions(10);
 
   const lastMonth = history[history.length - 1];
   const prevMonth = history[history.length - 2];
@@ -59,7 +62,6 @@ fetchFinanceData();
   const green = theme === "light" ? "#16a34a" : "#22c55e";
   const red = "#dc2626";
 
-  // Carousel: months are sorted oldest→newest; start at end so newest 3 are visible
   const { visible: visibleMonths, startIdx, direction, canPrev, canNext, goPrev, goNext, total } = useCarousel(months, MONTH_LIMIT, true);
 
   const handleAddMonth = () => {
@@ -155,7 +157,7 @@ fetchFinanceData();
           </div>
         </section>
 
-        {/* Section 2: Monthly Overview with carousel + add month */}
+        {/* Section 2: Monthly Overview */}
         <section className="mb-10">
           <div className="flex items-center justify-between mb-4">
             <p className="text-xs uppercase tracking-widest text-muted-foreground" style={{ fontFamily: "var(--font-mono)" }}>Monthly Overview</p>
@@ -284,44 +286,60 @@ fetchFinanceData();
           </div>
         </section>
 
-        {/* Section 3: Recent Transactions */}
+        {/* Section 3: Upgraded Accounts Ledger Snapshots */}
         <section>
-          <p className="text-xs uppercase tracking-widest text-muted-foreground mb-4" style={{ fontFamily: "var(--font-mono)" }}>Recent Transactions</p>
+          <p className="text-xs uppercase tracking-widest text-muted-foreground mb-4" style={{ fontFamily: "var(--font-mono)" }}>Accounts Balance Snapshot</p>
           <div className="bg-card rounded-2xl border border-border shadow-sm overflow-hidden">
-            {recentTx.length === 0 ? (
-              <div className="py-16 text-center text-muted-foreground text-sm">No transactions yet.</div>
+            {accounts.length === 0 ? (
+              <div className="py-16 text-center text-muted-foreground text-sm">No active savings accounts discovered. Create one inside a monthly sheet!</div>
             ) : (
               <div className="divide-y divide-border">
-                {recentTx.map((tx, i) => {
-                  const pos = tx.type === "income";
-                  const iconBg = pos
-                    ? (theme === "light" ? "#dcfce7" : "#172417")
-                    : (theme === "light" ? "#fee2e2" : "#2d1515");
+                {accounts.map((acc, i) => {
+                  const balance = getAccountAllTimeBalance(acc.id);
+                  const latestTx = getAccountLatestTransaction(acc.id);
+                  const isPositiveBalance = balance >= 0;
+
                   return (
                     <motion.div
-                      key={`${tx.id}-${i}`}
-                      initial={{ opacity: 0, x: -8 }}
-                      animate={{ opacity: 1, x: 0 }}
+                      key={acc.id}
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
                       transition={{ delay: i * 0.04 }}
-                      className="flex items-center justify-between px-5 py-3.5 hover:bg-muted/40 transition-colors"
+                      className="flex flex-col sm:flex-row sm:items-center justify-between px-6 py-4 hover:bg-muted/30 transition-colors gap-2"
                     >
                       <div className="flex items-center gap-3">
-                        <div className="h-8 w-8 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: iconBg }}>
-                          {pos
-                            ? <ArrowUpRight className="h-3.5 w-3.5" style={{ color: green }} />
-                            : <ArrowDownRight className="h-3.5 w-3.5" style={{ color: red }} />
-                          }
+                        <div className="h-9 w-9 rounded-xl bg-muted/60 flex items-center justify-center text-muted-foreground flex-shrink-0">
+                          <Wallet className="h-4 w-4" />
                         </div>
                         <div>
-                          <p className="text-sm font-medium leading-tight">{tx.label}</p>
-                          <p className="text-xs text-muted-foreground mt-0.5">{tx.accountName}</p>
+                          <p className="text-sm font-medium leading-tight">{acc.name}</p>
+                          {latestTx ? (
+                            <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
+                              <span>Last entry:</span>
+                              <span className="font-medium text-foreground">{latestTx.label}</span>
+                              <span style={{ color: latestTx.type === 'income' ? green : red }} className="font-semibold">
+                                ({latestTx.type === 'income' ? '+' : '−'}{fmt(latestTx.amount)})
+                              </span>
+                            </p>
+                          ) : (
+                            <p className="text-xs text-muted-foreground mt-1 italic">No transactions processed yet</p>
+                          )}
                         </div>
                       </div>
-                      <div className="text-right">
-                        <p className="text-sm font-semibold tabular-nums" style={{ fontFamily: "var(--font-mono)", color: pos ? green : red }}>
-                          {pos ? "+" : "−"}{fmt(tx.amount)}
+                      
+                      <div className="sm:text-right flex items-center sm:flex-col justify-between sm:justify-center border-t sm:border-t-0 pt-2 sm:pt-0 border-border">
+                        <span className="text-xs text-muted-foreground sm:hidden">Total Balance</span>
+                        <p 
+                          className="text-base font-semibold tabular-nums" 
+                          style={{ fontFamily: "var(--font-mono)", color: isPositiveBalance ? green : red }}
+                        >
+                          {fmt(balance)}
                         </p>
-                        <p className="text-xs text-muted-foreground mt-0.5" style={{ fontFamily: "var(--font-mono)" }}>{tx.date}</p>
+                        {latestTx && (
+                          <p className="text-[10px] text-muted-foreground mt-0.5 font-mono hidden sm:block">
+                            {latestTx.date}
+                          </p>
+                        )}
                       </div>
                     </motion.div>
                   );

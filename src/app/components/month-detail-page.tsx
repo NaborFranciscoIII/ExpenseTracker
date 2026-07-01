@@ -5,33 +5,25 @@ import { useTheme } from "../contexts/theme-context";
 import { useCarousel } from "../hooks/use-carousel";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
+import { Label } from "./ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "./ui/dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from "recharts";
-import { ArrowLeft, Moon, Sun, Plus, Pencil, Trash2, Check, X, ChevronLeft, ChevronRight } from "lucide-react";
+import { ArrowLeft, Moon, Sun, Plus, Pencil, Trash2, Check, X, ChevronLeft, ChevronRight, ArrowLeftRight } from "lucide-react";
 import { motion } from "motion/react";
 
 const PIE_COLORS = ["#16a34a", "#2563eb", "#dc2626", "#d97706", "#7c3aed", "#0891b2", "#db2777", "#ca8a04"];
 const MONTHS_LIST = ["January","February","March","April","May","June","July","August","September","October","November","December"];
 const DAY_LABELS = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
 
-function fmt(n: number, currency: string = "PHP") {
+function fmt(n: number) {
   return new Intl.NumberFormat("en-PH", {
     style: "currency",
-    currency,
+    currency: "PHP",
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   }).format(n);
 }
-
-function fmtCurrency(n: number, currency: string = "PHP") {
-  return new Intl.NumberFormat("en-PH", {
-    style: "currency",
-    currency,
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(n);
-}
-
 
 function renderOutsideLabel(props: any) {
   const { cx, cy, midAngle, outerRadius, name, value, percent, fill } = props;
@@ -50,7 +42,7 @@ function renderOutsideLabel(props: any) {
     <g>
       <path d={`M${sx},${sy}L${mx},${my}L${ex},${ey}`} stroke={fill} fill="none" strokeWidth={1.5} strokeLinecap="round" />
       <circle cx={ex} cy={ey} r={2.5} fill={fill} />
-      <text x={ex + (cos >= 0 ? 5 : -5)} y={ey - 3} textAnchor={textAnchor} fontSize={11} fontWeight={500} fill="var(--foreground)" style={{ fontFamily: "var(--font-sans)" }}>
+      <text x={ex + (cos >= 0 ? 5 : -5)} y={ey - 3} textAnchor={textAnchor} fontSize={11} fontWeight={500} fill="var(--foreground)">
         {name.length > 12 ? name.slice(0, 12) + "…" : name}
       </text>
       <text x={ex + (cos >= 0 ? 5 : -5)} y={ey + 10} textAnchor={textAnchor} fontSize={10} fill="var(--muted-foreground)" style={{ fontFamily: "var(--font-mono)" }}>
@@ -63,25 +55,30 @@ function renderOutsideLabel(props: any) {
 export function MonthDetailPage() {
   const { monthId } = useParams<{ monthId: string }>();
   const navigate = useNavigate();
-  const { months, accounts, getAccountTransactions, getAccountMonthTotals, addAccount, renameAccount, removeAccount } = useExpenses();
+  const { months, accounts, getAccountTransactions, getAccountMonthTotals, addAccount, renameAccount, removeAccount, addTransfer } = useExpenses();
   const { theme, toggleTheme } = useTheme();
 
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState("");
   const [addDialogOpen, setAddDialogOpen] = useState(false);
+  
+  // Dialog State Form Fields
+  const [activeTab, setActiveTab] = useState<"account" | "transfer">("account");
   const [newAccountName, setNewAccountName] = useState("");
+  const [transferFrom, setTransferFrom] = useState("");
+  const [transferTo, setTransferTo] = useState("");
+  const [transferAmount, setTransferAmount] = useState("");
 
   const month = months.find((m) => m.id === monthId);
   const green = theme === "light" ? "#16a34a" : "#22c55e";
   const red = "#dc2626";
 
-  // Pie chart: net savings (income − expenses) per savings account, positive only
   const pieData = useMemo(() => {
     if (!monthId) return [];
     return accounts
       .map((acc) => {
-        const { savings } = getAccountMonthTotals(acc.id, monthId);
-        return { name: acc.name, value: savings };
+        const { currentBalance } = getAccountMonthTotals(acc.id, monthId);
+        return { name: acc.name, value: currentBalance };
       })
       .filter((d) => d.value > 0);
   }, [accounts, getAccountMonthTotals, monthId]);
@@ -124,6 +121,17 @@ export function MonthDetailPage() {
     }
   };
 
+  const handleExecuteTransfer = async () => {
+    const amt = parseFloat(transferAmount);
+    if (!transferFrom || !transferTo || transferFrom === transferTo || isNaN(amt) || amt <= 0 || !monthId) return;
+
+    const transferDate = new Date().toISOString().split("T")[0]; // YYYY-MM-DD format
+    await addTransfer(transferFrom, transferTo, monthId, amt, transferDate);
+    
+    setTransferAmount("");
+    setAddDialogOpen(false);
+  };
+
   if (!month) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
@@ -161,22 +169,22 @@ export function MonthDetailPage() {
           </Button>
         </div>
 
-        {/* Section 1: Pie Chart */}
+        {/* Section 1: Pie Chart Breakdown */}
         <section className="mb-10">
-          <p className="text-xs uppercase tracking-widest text-muted-foreground mb-4" style={{ fontFamily: "var(--font-mono)" }}>Expense Distribution</p>
+          <p className="text-xs uppercase tracking-widest text-muted-foreground mb-4" style={{ fontFamily: "var(--font-mono)" }}>Balance Distribution Snapshot</p>
           <div className="bg-card rounded-2xl border border-border shadow-sm p-6">
             {pieData.length === 0 ? (
               <div className="h-64 flex items-center justify-center text-muted-foreground text-sm">
-                No accounts with positive net savings this month.
+                No ledger distributions discovered for this period.
               </div>
             ) : (
-              <ResponsiveContainer width="100%" height={400}>
+              <ResponsiveContainer width="100%" height={320}>
                 <PieChart>
                   <Pie
                     data={pieData}
                     cx="50%"
                     cy="50%"
-                    outerRadius={100}
+                    outerRadius={90}
                     paddingAngle={3}
                     dataKey="value"
                     label={renderOutsideLabel}
@@ -195,7 +203,7 @@ export function MonthDetailPage() {
                       fontFamily: "var(--font-mono)",
                       color: "var(--foreground)",
                     }}
-                    formatter={(v: number) => [fmtCurrency(v, "PHP"), "Net Savings"]}
+                    formatter={(v: number) => [fmt(v), "Net Value"]}
                   />
                 </PieChart>
               </ResponsiveContainer>
@@ -203,7 +211,7 @@ export function MonthDetailPage() {
           </div>
         </section>
 
-        {/* Section 2: Savings Accounts */}
+        {/* Section 2: Savings Accounts Grid with Dynamic Carry-Over Display */}
         <section className="mb-10">
           <div className="flex items-center justify-between mb-4">
             <p className="text-xs uppercase tracking-widest text-muted-foreground" style={{ fontFamily: "var(--font-mono)" }}>Savings Accounts</p>
@@ -221,27 +229,84 @@ export function MonthDetailPage() {
                   </Button>
                 </>
               )}
+              
               <Dialog open={addDialogOpen} onOpenChange={setAddDialogOpen}>
                 <DialogTrigger asChild>
-                  <Button size="sm" className="rounded-full h-7 px-3 gap-1 text-xs ml-1">
-                    <Plus className="h-3 w-3" />
-                    Add Account
+                  <Button size="sm" className="rounded-full h-7 px-3 gap-1.5 text-xs ml-1">
+                    <Plus className="h-3 w-3" /> Actions
                   </Button>
                 </DialogTrigger>
                 <DialogContent>
                   <DialogHeader>
-                    <DialogTitle>New Savings Account</DialogTitle>
+                    <div className="flex gap-4 border-b border-border pb-2 mb-2">
+                      <button 
+                        className="text-sm font-semibold transition-all pb-1 relative"
+                        style={{ color: activeTab === 'account' ? 'var(--foreground)' : 'var(--muted-foreground)' }}
+                        onClick={() => setActiveTab('account')}
+                      >
+                        Create Account
+                        {activeTab === 'account' && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary" />}
+                      </button>
+                      <button 
+                        className="text-sm font-semibold transition-all pb-1 relative flex items-center gap-1"
+                        style={{ color: activeTab === 'transfer' ? 'var(--foreground)' : 'var(--muted-foreground)' }}
+                        onClick={() => setActiveTab('transfer')}
+                      >
+                        <ArrowLeftRight className="h-3 w-3" /> Transfer Money
+                        {activeTab === 'transfer' && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary" />}
+                      </button>
+                    </div>
                   </DialogHeader>
-                  <div className="space-y-4 pt-2">
-                    <Input
-                      placeholder="Account name"
-                      value={newAccountName}
-                      onChange={(e) => setNewAccountName(e.target.value)}
-                      onKeyDown={(e) => e.key === "Enter" && handleAddAccount()}
-                      autoFocus
-                    />
-                    <Button onClick={handleAddAccount} className="w-full">Create Account</Button>
-                  </div>
+
+                  {activeTab === 'account' ? (
+                    <div className="space-y-4 pt-2">
+                      <Input
+                        placeholder="Account name (e.g. Bank Account)"
+                        value={newAccountName}
+                        onChange={(e) => setNewAccountName(e.target.value)}
+                        onKeyDown={(e) => e.key === "Enter" && handleAddAccount()}
+                        autoFocus
+                      />
+                      <Button onClick={handleAddAccount} className="w-full">Create Account</Button>
+                    </div>
+                  ) : (
+                    <div className="space-y-4 pt-2">
+                      <div>
+                        <Label className="text-xs text-muted-foreground mb-1 block">Source Account</Label>
+                        <Select value={transferFrom} onValueChange={setTransferFrom}>
+                          <SelectTrigger><SelectValue placeholder="From where?" /></SelectTrigger>
+                          <SelectContent>
+                            {accounts.map(a => <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>)}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div>
+                        <Label className="text-xs text-muted-foreground mb-1 block">Destination Account</Label>
+                        <Select value={transferTo} onValueChange={setTransferTo}>
+                          <SelectTrigger><SelectValue placeholder="To where?" /></SelectTrigger>
+                          <SelectContent>
+                            {accounts.map(a => <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>)}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div>
+                        <Label className="text-xs text-muted-foreground mb-1 block">Amount (PHP)</Label>
+                        <Input 
+                          type="number" 
+                          placeholder="0.00" 
+                          value={transferAmount} 
+                          onChange={(e) => setTransferAmount(e.target.value)} 
+                        />
+                      </div>
+                      <Button 
+                        onClick={handleExecuteTransfer} 
+                        className="w-full gap-1.5"
+                        disabled={!transferFrom || !transferTo || transferFrom === transferTo || !transferAmount}
+                      >
+                        <ArrowLeftRight className="h-4 w-4" /> Execute Internal Transfer
+                      </Button>
+                    </div>
+                  )}
                 </DialogContent>
               </Dialog>
             </div>
@@ -249,8 +314,8 @@ export function MonthDetailPage() {
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {accCarousel.visible.map((acc, i) => {
-              const { income, expenses, savings } = getAccountMonthTotals(acc.id, monthId!);
-              const pos = savings >= 0;
+              const { income, expenses, savings, carryOver, currentBalance } = getAccountMonthTotals(acc.id, monthId!);
+              const pos = currentBalance >= 0;
               const isRenaming = renamingId === acc.id;
 
               return (
@@ -301,19 +366,23 @@ export function MonthDetailPage() {
                       )}
                     </div>
 
-                    <div className="space-y-1">
-                      <div className="flex justify-between">
-                        <span className="text-xs text-muted-foreground">Income</span>
-                        <span className="text-xs tabular-nums" style={{ fontFamily: "var(--font-mono)", color: green }}>+{fmt(income)}</span>
+                    <div className="space-y-1.5 text-xs">
+                      <div className="flex justify-between font-mono text-muted-foreground border-b border-border/40 pb-1 mb-1">
+                        <span>Carry Over Baseline</span>
+                        <span style={{ color: carryOver >= 0 ? green : red }}>{carryOver >= 0 ? "+" : "−"}{fmt(Math.abs(carryOver))}</span>
                       </div>
                       <div className="flex justify-between">
-                        <span className="text-xs text-muted-foreground">Expenses</span>
-                        <span className="text-xs tabular-nums" style={{ fontFamily: "var(--font-mono)", color: red }}>−{fmt(expenses)}</span>
+                        <span>Month Income</span>
+                        <span style={{ color: green }}>+{fmt(income)}</span>
                       </div>
-                      <div className="flex justify-between pt-1.5 border-t border-border">
-                        <span className="text-xs text-muted-foreground">Net</span>
-                        <span className="text-xs font-semibold tabular-nums" style={{ fontFamily: "var(--font-mono)", color: pos ? green : red }}>
-                          {pos ? "+" : "−"}{fmt(Math.abs(savings))}
+                      <div className="flex justify-between">
+                        <span>Month Expenses</span>
+                        <span style={{ color: red }}>−{fmt(expenses)}</span>
+                      </div>
+                      <div className="flex justify-between pt-1.5 border-t border-border font-medium">
+                        <span className="text-muted-foreground">Current Net Balance</span>
+                        <span className="font-semibold tabular-nums" style={{ fontFamily: "var(--font-mono)", color: pos ? green : red }}>
+                          {fmt(currentBalance)}
                         </span>
                       </div>
                     </div>
@@ -324,7 +393,7 @@ export function MonthDetailPage() {
           </div>
         </section>
 
-        {/* Section 3: Calendar */}
+        {/* Section 3: Calendar Viewer */}
         <section>
           <p className="text-xs uppercase tracking-widest text-muted-foreground mb-4" style={{ fontFamily: "var(--font-mono)" }}>
             Calendar · {month.month} {month.year}
