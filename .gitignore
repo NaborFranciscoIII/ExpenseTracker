@@ -16,3 +16,6 @@ android/local.properties
 .DS_Store
 Thumbs.db
 .vscode/
+
+# Desktop build artifacts & local variables
+src-tauri/
