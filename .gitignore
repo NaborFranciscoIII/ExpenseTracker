@@ -17,5 +17,6 @@ android/local.properties
 Thumbs.db
 .vscode/
 
-# Desktop build artifacts & local variables
-src-tauri/
+# Rust build artifacts and dependency cache folders
+src-tauri/target/
+src-tauri/Cargo.lock.bak
