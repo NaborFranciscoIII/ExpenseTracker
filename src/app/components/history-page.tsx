@@ -7,7 +7,7 @@ import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { Label } from "./ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "./ui/dialog";
-import { ArrowLeft, Moon, Sun, Plus, Pencil, Trash2, Check, X, ArrowUpRight, ArrowDownRight, ChevronLeft, ChevronRight } from "lucide-react";
+import { ArrowLeft, Moon, Sun, Plus, Pencil, Trash2, Check, X, ArrowUpRight, ArrowDownRight, ChevronLeft, ChevronRight, Scale } from "lucide-react";
 import { motion } from "motion/react";
 
 function fmt(n: number, currency: string = "PHP") {
@@ -58,8 +58,11 @@ export function HistoryPage() {
   const sorted = [...transactions].sort((a, b) => b.date.localeCompare(a.date));
   const TX_LIMIT = 6;
   const txCarousel = useCarousel(sorted, TX_LIMIT, false);
-  const { income, expenses, savings } = getAccountMonthTotals(accountId!, monthId!);
+  
+  // Destructure the updated fields from the rolling calculation context engine
+  const { income, expenses, savings, carryOver, currentBalance } = getAccountMonthTotals(accountId!, monthId!);
   const pos = savings >= 0;
+  const isBalancePositive = currentBalance >= 0;
 
   const startEdit = (tx: typeof transactions[0]) => {
     setEditingId(tx.id);
@@ -77,25 +80,23 @@ export function HistoryPage() {
     setEditingId(null);
   };
 
-  // Find your handleAdd function inside history-page.tsx and update it:
   const handleAdd = async () => {
-      if (!newTx.label.trim() || !newTx.amount || !newTx.date) return;
+    if (!newTx.label.trim() || !newTx.amount || !newTx.date) return;
+    
+    try {
+      await addTransaction(accountId!, monthId!, {
+        type: newTx.type as "income" | "expense",
+        amount: parseFloat(newTx.amount),
+        date: newTx.date,
+        label: newTx.label.trim(),
+      });
       
-      try {
-        // Adjusted arguments to cleanly map to your three-parameter context configuration signature
-        await addTransaction(accountId!, monthId!,{
-            type: newTx.type as "income" | "expense",
-            amount: parseFloat(newTx.amount),
-            date: newTx.date,
-            label: newTx.label.trim(),
-          });
-        
-        setNewTx({ type: "expense", amount: "", date: "", label: "" });
-        setAddDialogOpen(false);
-      } catch (error) {
-        console.error("Failed to commit transaction record:", error);
-      }
-    };
+      setNewTx({ type: "expense", amount: "", date: "", label: "" });
+      setAddDialogOpen(false);
+    } catch (error) {
+      console.error("Failed to commit transaction record:", error);
+    }
+  };
 
   const summaryCards = [
     { label: "Total Income", value: income, color: green },
@@ -108,7 +109,7 @@ export function HistoryPage() {
       <div className="max-w-3xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
 
         {/* Header */}
-        <div className="flex items-center justify-between mb-8">
+        <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-3">
             <Button variant="ghost" size="icon" onClick={() => navigate(`/month/${monthId}`)} className="rounded-full h-9 w-9">
               <ArrowLeft className="h-4 w-4" />
@@ -125,9 +126,25 @@ export function HistoryPage() {
           </Button>
         </div>
 
+        {/* Brand New Feature: Prominent Rolling Account Balance & Baseline Tracking Banner */}
+        <div className="bg-card rounded-2xl border border-border shadow-sm p-5 mb-8 grid grid-cols-1 sm:grid-cols-2 gap-4 items-center">
+          <div>
+            <p className="text-xs text-muted-foreground uppercase font-mono tracking-wider">Current Account Balance</p>
+            <h2 className="text-3xl font-bold tracking-tight font-mono mt-1" style={{ color: isBalancePositive ? green : red }}>
+              {fmt(currentBalance)}
+            </h2>
+          </div>
+          <div className="sm:text-right border-t sm:border-t-0 pt-3 sm:pt-0 border-border/60 flex sm:flex-col justify-between">
+            <span className="text-xs text-muted-foreground font-mono">Carry Over Baseline:</span>
+            <span className="text-sm font-semibold font-mono mt-0.5" style={{ color: carryOver >= 0 ? green : red }}>
+              {carryOver >= 0 ? "+" : "−"}{fmt(Math.abs(carryOver))}
+            </span>
+          </div>
+        </div>
+
         {/* Section 1: Summary */}
         <section className="mb-8">
-          <p className="text-xs uppercase tracking-widest text-muted-foreground mb-4" style={{ fontFamily: "var(--font-mono)" }}>Summary</p>
+          <p className="text-xs uppercase tracking-widest text-muted-foreground mb-4" style={{ fontFamily: "var(--font-mono)" }}>Month Activity</p>
           <div className="grid grid-cols-3 gap-3">
             {summaryCards.map((card) => (
               <div key={card.label} className="bg-card rounded-2xl border border-border shadow-sm p-4">
@@ -147,7 +164,7 @@ export function HistoryPage() {
         <section>
           <div className="flex items-center justify-between mb-4">
             <p className="text-xs uppercase tracking-widest text-muted-foreground" style={{ fontFamily: "var(--font-mono)" }}>
-              Transaction History
+              Transaction Log
             </p>
             <div className="flex items-center gap-1.5">
               {txCarousel.total > TX_LIMIT && (
@@ -175,7 +192,6 @@ export function HistoryPage() {
                   <DialogTitle>Add Transaction</DialogTitle>
                 </DialogHeader>
                 <div className="space-y-4 pt-2">
-                  {/* Type toggle */}
                   <div>
                     <Label className="text-xs text-muted-foreground mb-2 block">Type</Label>
                     <div className="grid grid-cols-2 gap-2">
@@ -236,7 +252,6 @@ export function HistoryPage() {
                         animate={{ opacity: 1 }}
                         className="p-4 bg-muted/30"
                       >
-                        {/* Edit type toggle */}
                         <div className="grid grid-cols-2 gap-2 mb-3">
                           {(["income", "expense"] as const).map((t) => (
                             <button

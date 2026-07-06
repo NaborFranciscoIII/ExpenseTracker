@@ -1,0 +1,13 @@
+Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope Process
+
+npm run build
+
+-- Compiling for Android --
+npx cap copy android
+Launch Android Studio
+Click 'Assemble'
+Then check: D:\Code Projects\For Portfolio\Expense Tracker Design\android\app\build\outputs\apk\debug\app-debug.apk
+
+-- Compiling for Windows PC --
+npx tauri build
+Then check: D:\Code Projects\For Portfolio\Expense Tracker Design\src-tauri\target\release\bundle\msi\

@@ -201,8 +201,10 @@ export function MonthDetailPage() {
                       borderRadius: "8px",
                       fontSize: "12px",
                       fontFamily: "var(--font-mono)",
-                      color: "var(--foreground)",
+                      color: "var(--foreground)", // Forces structural font changes based on theme
                     }}
+                    itemStyle={{ color: "var(--foreground)" }}
+                    labelStyle={{ color: "var(--muted-foreground)" }}
                     formatter={(v: number) => [fmt(v), "Net Value"]}
                   />
                 </PieChart>

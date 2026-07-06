@@ -39,6 +39,7 @@ interface ExpenseContextType {
   getMonthTotals: (monthId: string) => { income: number; expenses: number; savings: number };
   getTotalSavings: () => number;
   getMonthlySavingsHistory: () => any[];
+  getMonthlyCumulativeHistory: () => any[];
   getAllRecentTransactions: (limit: number) => any[];
   getAccountAllTimeBalance: (accountId: string) => number;
   getAccountLatestTransaction: (accountId: string) => Transaction | null;
@@ -50,6 +51,8 @@ interface ExpenseContextType {
 type MyTx = Omit<Transaction, 'id' | 'monthId' | 'accountId'>;
 
 const ExpenseContext = createContext<ExpenseContextType | undefined>(undefined);
+
+const MONTHS_ORDER = ["January","February","March","April","May","June","July","August","September","October","November","December"];
 
 export const ExpenseProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { isAuthenticated } = useAuth();
@@ -85,7 +88,7 @@ export const ExpenseProvider: React.FC<{ children: React.ReactNode }> = ({ child
       setAccounts(accountsRes.data);
       setTransactions(txRes.data || []);
     } catch (err) {
-      console.warn('Backend server offline. Relying securely on local persistent storage.');
+      console.warn('Backend offline. Relying on persistent local storage.');
     } finally {
       setLoading(false);
     }
@@ -93,13 +96,20 @@ export const ExpenseProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
   useEffect(() => { fetchFinanceData(); }, [isAuthenticated]);
 
+  const sortMonthsChronologically = (monthList: MonthData[]) => {
+    return [...monthList].sort((a, b) => {
+      if (a.year !== b.year) return a.year - b.year;
+      return MONTHS_ORDER.indexOf(a.month) - MONTHS_ORDER.indexOf(b.month);
+    });
+  };
+
   const addMonth = async (month: string, year: number) => {
     const newMonthData = { id: `${month.toLowerCase()}-${year}-${Math.random().toString(36).substr(2, 4)}`, month, year };
     try {
       const response = await api.post('/months', { month, year });
-      setMonths((prev) => [...prev, response.data]);
+      setMonths((prev) => sortMonthsChronologically([...prev, response.data]));
     } catch (error) {
-      setMonths((prev) => [...prev, newMonthData]);
+      setMonths((prev) => sortMonthsChronologically([...prev, newMonthData]));
     }
   };
 
@@ -152,7 +162,6 @@ export const ExpenseProvider: React.FC<{ children: React.ReactNode }> = ({ child
     }
   };
 
-  // Feature 1: Double-Entry automated accounting transaction split transfer engine
   const addTransfer = async (fromAccountId: string, toAccountId: string, monthId: string, amount: number, date: string) => {
     const fromName = accounts.find(a => a.id === fromAccountId)?.name || "Account";
     const toName = accounts.find(a => a.id === toAccountId)?.name || "Account";
@@ -184,7 +193,6 @@ export const ExpenseProvider: React.FC<{ children: React.ReactNode }> = ({ child
       ]);
       setTransactions((prev) => [...prev, txFrom, txTo]);
     } catch (error) {
-      console.warn("Backend offline. Executing local structural ledger double-entry split transfer.");
       setTransactions((prev) => [...prev, txFrom, txTo]);
     }
   };
@@ -210,7 +218,6 @@ export const ExpenseProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const getAccountTransactions = (accountId: string, monthId: string) =>
     transactions.filter(t => t.accountId === accountId && t.monthId === monthId);
 
-  // Feature 2 & 3: High Performance Rolling Balance Calculation Architecture
   const getAccountAllTimeBalance = (accountId: string) => {
     const list = transactions.filter(t => t.accountId === accountId);
     const inc = list.filter(t => t.type === 'income').reduce((sum, t) => sum + t.amount, 0);
@@ -227,34 +234,24 @@ export const ExpenseProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const getAccountMonthTotals = (accountId: string, monthId: string) => {
     const currentMonthData = months.find(m => m.id === monthId);
     
-    // Compute chronological historical baseline (everything BEFORE this month began)
     const historicalTx = transactions.filter(t => {
       if (t.accountId !== accountId) return false;
       const txMonth = months.find(m => m.id === t.monthId);
       if (!txMonth || !currentMonthData) return false;
       if (txMonth.year !== currentMonthData.year) return txMonth.year < currentMonthData.year;
-      
-      const monthsOrder = ["January","February","March","April","May","June","July","August","September","October","November","December"];
-      return monthsOrder.indexOf(txMonth.month) < monthsOrder.indexOf(currentMonthData.month);
+      return MONTHS_ORDER.indexOf(txMonth.month) < MONTHS_ORDER.indexOf(currentMonthData.month);
     });
 
     const historicalInc = historicalTx.filter(t => t.type === 'income').reduce((sum, t) => sum + t.amount, 0);
     const historicalExp = historicalTx.filter(t => t.type === 'expense').reduce((sum, t) => sum + t.amount, 0);
     const carryOver = historicalInc - historicalExp;
 
-    // Current targeted month activities
     const list = getAccountTransactions(accountId, monthId);
     const income = list.filter(t => t.type === 'income').reduce((sum, t) => sum + t.amount, 0);
     const expenses = list.filter(t => t.type === 'expense').reduce((sum, t) => sum + t.amount, 0);
     const savings = income - expenses;
 
-    return { 
-      income, 
-      expenses, 
-      savings, 
-      carryOver, 
-      currentBalance: carryOver + savings 
-    };
+    return { income, expenses, savings, carryOver, currentBalance: carryOver + savings };
   };
 
   const getMonthTotals = (monthId: string) => {
@@ -268,13 +265,31 @@ export const ExpenseProvider: React.FC<{ children: React.ReactNode }> = ({ child
     transactions.filter(t => t.type === 'income').reduce((sum, t) => sum + t.amount, 0) -
     transactions.filter(t => t.type === 'expense').reduce((sum, t) => sum + t.amount, 0);
 
-  const getMonthlySavingsHistory = () =>
-    months.map(m => ({
+  const getMonthlySavingsHistory = () => {
+    const sorted = sortMonthsChronologically(months);
+    return sorted.map(m => ({
       monthId: m.id,
       month: m.month,
       year: m.year,
       savings: getMonthTotals(m.id).savings,
     }));
+  };
+
+  // Fixed Cumulative Optimization: Ensures your charts reflect true wealth accumulation
+  const getMonthlyCumulativeHistory = () => {
+    const sorted = sortMonthsChronologically(months);
+    let runningAccumulation = 0;
+    return sorted.map(m => {
+      const currentMonthNet = getMonthTotals(m.id).savings;
+      runningAccumulation += currentMonthNet;
+      return {
+        monthId: m.id,
+        month: m.month,
+        year: m.year,
+        savings: runningAccumulation // Tracks wealth milestone curve properly
+      };
+    });
+  };
 
   const getAllRecentTransactions = (limit: number) =>
     [...transactions]
@@ -289,7 +304,7 @@ export const ExpenseProvider: React.FC<{ children: React.ReactNode }> = ({ child
     <ExpenseContext.Provider value={{
       months, accounts, transactions, loading, addMonth, addAccount, addTransaction, addTransfer,
       updateTransaction, deleteTransaction, getAccountTransactions, getAccountMonthTotals,
-      getMonthTotals, getTotalSavings, getMonthlySavingsHistory, getAllRecentTransactions,
+      getMonthTotals, getTotalSavings, getMonthlySavingsHistory, getMonthlyCumulativeHistory, getAllRecentTransactions,
       getAccountAllTimeBalance, getAccountLatestTransaction, renameAccount, removeAccount, fetchFinanceData
     }}>
       {children}
