@@ -1,0 +1,46 @@
+//Quality of Life
+1. Add Search, Filter, and Sort Feature
+2. Rename 'Savings Accounts' to 'Accounts'
+3. Small UX Improvements
+   - Swipe to delete | Long press to edit | Floating Add Transaction button | Pull to refresh | Empty states | onfirmation dialogs | Undo delete | Export CSV
+
+//New Features
+1. Daily Spending Limit
+2. Monthly Expense Limit
+3. Categories
+   - Example: Food, Transportation, Entertainment, Medical, Bills, Groceries, etc. | Can be modified | Must have icons
+4. Recurring Transactions
+   - Example: Internet every month | Salary every month | Gym every month
+5. Better Analytics
+   - Instead of pie charts, add: Weekly spending | monthly comparison | income vs expense | largest category | highest spending day | average daily expenses | biggest transaction | can be modified
+
+
+Do NOT bloat all information at once. Use navigation techniques such as carousel.
+
+---
+
+Phase 1: The Database Schema & QoL Update
+
+Update expense-context.tsx to support categoryId in transactions.
+
+Rename "Savings Accounts".
+
+Add the Export CSV button (super easy to do).
+
+Build the Search/Filter UI in the history log.
+
+Phase 2: The UI/UX Polish
+
+Integrate Framer Motion for swipe-to-delete gestures on mobile.
+
+Add the Floating Action Button (FAB) for quick transaction entry.
+
+Build out the Empty States and Undo Delete toast.
+
+Phase 3: The Heavy Features (Analytics & Limits)
+
+Build the Category Budget engine.
+
+Build the multi-slide Analytics Carousel for the Home Page.
+
+Finally, tackle the complex "Boot-Up Catchup" logic for Recurring Transactions.

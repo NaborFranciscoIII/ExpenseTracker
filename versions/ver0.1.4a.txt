@@ -1,0 +1,7 @@
+Bugs and fixes
+
+1. Modify the 'Top Spending Categories' (Home Page) logic such that transactions that happen between accounts will not be included. Example; Transfer 5000 pesos from Bank Account to Home Allowance.
+   a. I suggest we also modify the logic which makes the system such transactions detectable by 'Income and Expense' Transactions. 
+2. Change the Category Budget Health (Home Page) logic where the spending limit for the month will be displayed regardless of whether there are existing transactions of that category or none.
+3. Modify the feature of adding categories to transactions. Instead of just choosing from a select hard-coded choices, allow the user to create categories if necessary.
+4. Add a proper exit procedure when closing the app. Example; "Do you want to exit... | I used 'gesture' and 'buttons' navigation on my phone, and the 'back' button closes the app instantly. Or minimizes since it still appears on background.
