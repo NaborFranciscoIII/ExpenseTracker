@@ -14,10 +14,7 @@ import {
   Search, Download, Filter, SearchX, RotateCcw 
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
-
-function fmt(n: number, currency: string = "PHP") {
-  return new Intl.NumberFormat("en-PH", { style: "currency", currency, minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n);
-}
+import { useSettings } from "../contexts/settings-context";
 
 interface EditState { type: "income" | "expense"; amount: string; date: string; label: string; category: string; }
 
@@ -26,6 +23,7 @@ export function HistoryPage() {
   const navigate = useNavigate();
   const { months, accounts, categories, getAccountTransactions, getAccountMonthTotals, addTransaction, updateTransaction, deleteTransaction } = useExpenses();
   const { theme, toggleTheme } = useTheme();
+  const { formatCurrency } = useSettings();
 
   const [isCreatingCategory, setIsCreatingCategory] = useState(false);
   const [customCategoryInput, setCustomCategoryInput] = useState("");
@@ -132,7 +130,7 @@ export function HistoryPage() {
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-3">
-            <Button variant="ghost" size="icon" onClick={() => navigate(`/month/${monthId}`)} className="rounded-full h-9 w-9">
+            <Button variant="ghost" size="icon" onClick={() => navigate(`/transactions/${monthId}`)} className="rounded-full h-9 w-9">
               <ArrowLeft className="h-4 w-4" />
             </Button>
             <div>
@@ -154,11 +152,11 @@ export function HistoryPage() {
         <div className="bg-card rounded-2xl border border-border shadow-sm p-5 mb-8 grid grid-cols-1 sm:grid-cols-2 gap-4 items-center">
           <div>
             <p className="text-xs text-muted-foreground uppercase font-mono tracking-wider">Current Account Balance</p>
-            <h2 className="text-3xl font-bold tracking-tight font-mono mt-1" style={{ color: isBalancePositive ? green : red }}>{fmt(currentBalance)}</h2>
+            <h2 className="text-3xl font-bold tracking-tight font-mono mt-1" style={{ color: isBalancePositive ? green : red }}>{formatCurrency(currentBalance)}</h2>
           </div>
           <div className="sm:text-right border-t sm:border-t-0 pt-3 sm:pt-0 border-border/60 flex sm:flex-col justify-between">
             <span className="text-xs text-muted-foreground font-mono">Carry Over Baseline:</span>
-            <span className="text-sm font-semibold font-mono mt-0.5" style={{ color: carryOver >= 0 ? green : red }}>{carryOver >= 0 ? "+" : "−"}{fmt(Math.abs(carryOver))}</span>
+            <span className="text-sm font-semibold font-mono mt-0.5" style={{ color: carryOver >= 0 ? green : red }}>{carryOver >= 0 ? "+" : "−"}{formatCurrency(Math.abs(carryOver))}</span>
           </div>
         </div>
 
@@ -327,7 +325,7 @@ export function HistoryPage() {
                             </div>
                           </div>
                           <div className="flex items-center gap-2">
-                            <p className="text-sm font-semibold tabular-nums mr-1" style={{ fontFamily: "var(--font-mono)", color: txPos ? green : red }}>{txPos ? "+" : "−"}{fmt(tx.amount)}</p>
+                            <p className="text-sm font-semibold tabular-nums mr-1" style={{ fontFamily: "var(--font-mono)", color: txPos ? green : red }}>{txPos ? "+" : "−"}{formatCurrency(tx.amount)}</p>
                             <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => startEdit(tx)}><Pencil className="h-3 w-3" /></Button>
                             {/* Standard Click Delete for Desktop Users */}
                             <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive hover:text-destructive hidden sm:flex" onClick={() => triggerDelete(tx.id)}><Trash2 className="h-3 w-3" /></Button>

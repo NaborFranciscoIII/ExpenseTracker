@@ -4,7 +4,7 @@ npm run build
 
 -- Compiling for Android --
 npx cap copy android
-Launch Android Studio
+Launch Android Studio | npx cap open android
 Click 'Assemble'
 Then check: D:\Code Projects\For Portfolio\Expense Tracker Design\android\app\build\outputs\apk\debug\app-debug.apk
 

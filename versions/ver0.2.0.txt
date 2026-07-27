@@ -1,0 +1,11 @@
+//Navigation Feature
+1. Identify on how to optimize and to split pages properly. Currently I plan to split pages into different parts
+  a. Home Page | Contains data for Net Wealth Value, Growth and Loss of Savings both numerical and chart, Accounts Balance and previous transactions
+  b. Transaction Page | Default page displays month cards which leads to monthly details page which contains the pie chart, accounts operations to transaction operations page, and calendar to monitor spending
+  c. Analytics Page | Top Spending Limits & Budget Limits
+  d. Settings (New) | Global Currency support settings & notifications
+
+//UI Improvements
+1. Accounts Balance inside Home Page | The display for each account card should have sizable space from each other to avoid confusion
+2. Growth Period chart inside Home Page should have a setting to display by day, month, or year
+3. In dark mode, when a value is selected on the Pie Chart at months page and Distribution Chart in home page, the numerical value is written on color black, which makes the content unreadable.

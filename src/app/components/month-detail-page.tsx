@@ -11,16 +11,24 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from ".
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from "recharts";
 import { ArrowLeft, Moon, Sun, Plus, Pencil, Trash2, Check, X, ChevronLeft, ChevronRight, ArrowLeftRight, Target, Repeat, Trash } from "lucide-react";
 import { motion } from "motion/react";
+import { useSettings } from "../contexts/settings-context";
 
 const PIE_COLORS = ["#16a34a", "#2563eb", "#dc2626", "#d97706", "#7c3aed", "#0891b2", "#db2777", "#ca8a04"];
 const MONTHS_LIST = ["January","February","March","April","May","June","July","August","September","October","November","December"];
-const DAY_LABELS = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
+const DAY_LABELS = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];  
 
-function fmt(n: number) {
-  return new Intl.NumberFormat("en-PH", { style: "currency", currency: "PHP", minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n);
-}
+export function MonthDetailPage() {
+  const { monthId } = useParams<{ monthId: string }>();
+  const navigate = useNavigate();
+  const { 
+    months, accounts, categories, recurring, budgets, 
+    getAccountTransactions, getAccountMonthTotals, addAccount, renameAccount, 
+    removeAccount, addTransfer, setCategoryBudget, addRecurring, deleteRecurring 
+  } = useExpenses();
+  const { theme, toggleTheme } = useTheme();
+  const { formatCurrency } = useSettings();
 
-function renderOutsideLabel(props: any) {
+  function renderOutsideLabel(props: any) {
   const { cx, cy, midAngle, outerRadius, name, value, percent, fill } = props;
   if (percent < 0.04) return null;
   const RADIAN = Math.PI / 180;
@@ -40,21 +48,11 @@ function renderOutsideLabel(props: any) {
         {name.length > 12 ? name.slice(0, 12) + "…" : name}
       </text>
       <text x={ex + (cos >= 0 ? 5 : -5)} y={my + 10} textAnchor={textAnchor} fontSize={10} fill="var(--muted-foreground)" style={{ fontFamily: "var(--font-mono)" }}>
-        {fmt(value)}
+        {formatCurrency(value)}
       </text>
     </g>
   );
 }
-
-export function MonthDetailPage() {
-  const { monthId } = useParams<{ monthId: string }>();
-  const navigate = useNavigate();
-  const { 
-    months, accounts, categories, recurring, budgets, 
-    getAccountTransactions, getAccountMonthTotals, addAccount, renameAccount, 
-    removeAccount, addTransfer, setCategoryBudget, addRecurring, deleteRecurring 
-  } = useExpenses();
-  const { theme, toggleTheme } = useTheme();
 
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState("");
@@ -183,7 +181,7 @@ export function MonthDetailPage() {
                   <Pie data={pieData} cx="50%" cy="50%" outerRadius={90} paddingAngle={3} dataKey="value" label={renderOutsideLabel} labelLine={false}>
                     {pieData.map((_, index) => <Cell key={`cell-${index}`} fill={PIE_COLORS[index % PIE_COLORS.length]} />)}
                   </Pie>
-                  <Tooltip contentStyle={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: "8px", fontSize: "12px", fontFamily: "var(--font-mono)", color: "var(--foreground)" }} formatter={(v: number) => [fmt(v), "Net Value"]} />
+                  <Tooltip contentStyle={{ background: "var(--card)", border: "1px solid var(--border)", color: "var(--foreground)" }} itemStyle={{ color: "var(--foreground)" }} />
                 </PieChart>
               </ResponsiveContainer>
             )}
@@ -281,7 +279,7 @@ export function MonthDetailPage() {
                                   <p className="text-[10px] text-muted-foreground mt-1">Due: {r.nextDueDate}</p>
                                 </div>
                                 <div className="flex items-center gap-2">
-                                  <span style={{ color: r.type === 'income' ? green : red, fontFamily: "var(--font-mono)" }}>{fmt(r.amount)}</span>
+                                  <span style={{ color: r.type === 'income' ? green : red, fontFamily: "var(--font-mono)" }}>{formatCurrency(r.amount)}</span>
                                   <Button size="icon" variant="ghost" className="h-6 w-6 text-destructive" onClick={() => deleteRecurring(r.id)}><Trash className="h-3 w-3"/></Button>
                                 </div>
                               </div>
@@ -306,7 +304,7 @@ export function MonthDetailPage() {
 
               return (
                 <motion.div key={`${acc.id}-${accCarousel.startIdx}`} initial={{ x: accCarousel.direction * 30, opacity: 0 }} animate={{ x: 0, opacity: 1 }} transition={{ duration: 0.2, ease: "easeOut", delay: i * 0.06 }} whileHover={isRenaming ? {} : { scale: 1.015, y: -2 }}>
-                  <div className="bg-card rounded-2xl border border-border shadow-sm hover:border-primary/40 transition-all p-5 cursor-pointer" onClick={() => !isRenaming && navigate(`/month/${monthId}/account/${acc.id}`)}>
+                  <div className="bg-card rounded-2xl border border-border shadow-sm hover:border-primary/40 transition-all p-5 cursor-pointer" onClick={() => !isRenaming && navigate(`/transactions/${monthId}/account/${acc.id}`)}>
                     <div className="flex items-center justify-between mb-3">
                       {isRenaming ? (
                         <div className="flex items-center gap-1.5 flex-1 mr-2" onClick={(e) => e.stopPropagation()}>
@@ -327,13 +325,13 @@ export function MonthDetailPage() {
                     <div className="space-y-1.5 text-xs">
                       <div className="flex justify-between font-mono text-muted-foreground border-b border-border/40 pb-1 mb-1">
                         <span>Carry Over Baseline</span>
-                        <span style={{ color: carryOver >= 0 ? green : red }}>{carryOver >= 0 ? "+" : "−"}{fmt(Math.abs(carryOver))}</span>
+                        <span style={{ color: carryOver >= 0 ? green : red }}>{carryOver >= 0 ? "+" : "−"}{formatCurrency(Math.abs(carryOver))}</span>
                       </div>
-                      <div className="flex justify-between"><span>Month Income</span><span style={{ color: green }}>+{fmt(income)}</span></div>
-                      <div className="flex justify-between"><span>Month Expenses</span><span style={{ color: red }}>−{fmt(expenses)}</span></div>
+                      <div className="flex justify-between"><span>Month Income</span><span style={{ color: green }}>+{formatCurrency(income)}</span></div>
+                      <div className="flex justify-between"><span>Month Expenses</span><span style={{ color: red }}>−{formatCurrency(expenses)}</span></div>
                       <div className="flex justify-between pt-1.5 border-t border-border font-medium">
                         <span className="text-muted-foreground">Current Net Balance</span>
-                        <span className="font-semibold tabular-nums" style={{ fontFamily: "var(--font-mono)", color: pos ? green : red }}>{fmt(currentBalance)}</span>
+                        <span className="font-semibold tabular-nums" style={{ fontFamily: "var(--font-mono)", color: pos ? green : red }}>{formatCurrency(currentBalance)}</span>
                       </div>
                     </div>
                   </div>

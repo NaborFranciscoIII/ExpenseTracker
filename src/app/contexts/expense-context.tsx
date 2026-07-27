@@ -30,12 +30,15 @@ interface ExpenseContextType {
   budgets: CategoryBudget[];
   recurring: RecurringTx[];
   loading: boolean;
+  addCategory: (category: string) => void;
+  convertAllFinancialData: (multiplier: number) => void;
   addMonth: (month: string, year: number) => Promise<void>;
   addAccount: (name: string) => Promise<void>;
   addTransaction: (accountId: string, monthId: string, tx: Omit<Transaction, 'id' | 'monthId' | 'accountId'>) => Promise<void>;
   addTransfer: (fromAccountId: string, toAccountId: string, monthId: string, amount: number, date: string) => Promise<void>;
   updateTransaction: (accountId: string, monthId: string, txId: string, tx: any) => Promise<void>;
   deleteTransaction: (accountId: string, monthId: string, txId: string) => Promise<void>;
+  
   
   // New Phase 3 Methods
   setCategoryBudget: (category: string, limit: number) => void;
@@ -58,6 +61,85 @@ interface ExpenseContextType {
   removeAccount: (id: string) => Promise<void>;
   fetchFinanceData: () => Promise<void>;
 }
+
+interface SettingsContextType {
+  currency: string;
+  rates: Record<string, number> | null;
+  lastUpdated: string | null;
+  changeCurrency: (newCurrency: string, triggerDatabaseConversion: (multiplier: number) => void) => Promise<boolean>;
+  refreshRates: () => Promise<boolean>;
+  // 👇 New dynamic formatter
+  formatCurrency: (amount: number) => string; 
+}
+
+const SettingsContext = createContext<SettingsContextType | undefined>(undefined);
+export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const [currency, setCurrency] = useState(() => localStorage.getItem('app_currency') || 'PHP');
+  const [rates, setRates] = useState<Record<string, number> | null>(() => {
+    const saved = localStorage.getItem('app_rates');
+    return saved ? JSON.parse(saved) : null;
+  });
+  const [lastUpdated, setLastUpdated] = useState<string | null>(() => localStorage.getItem('app_rates_date'));
+
+  const refreshRates = async () => {
+    try {
+      const res = await fetch('https://open.er-api.com/v6/latest/USD');
+      const data = await res.json();
+      if (data && data.rates) {
+        setRates(data.rates);
+        setLastUpdated(data.time_last_update_utc);
+        localStorage.setItem('app_rates', JSON.stringify(data.rates));
+        localStorage.setItem('app_rates_date', data.time_last_update_utc);
+        return true;
+      }
+      return false;
+    } catch (err) {
+      console.warn("Offline: Using cached exchange rates.");
+      return false;
+    }
+  };
+
+  useEffect(() => { refreshRates(); }, []);
+
+  const changeCurrency = async (newCurrency: string, triggerDatabaseConversion: (multiplier: number) => void) => {
+    if (newCurrency === currency) return true;
+    if (!rates) {
+      const success = await refreshRates();
+      if (!success) return false;
+    }
+    const currentRates = JSON.parse(localStorage.getItem('app_rates') || '{}');
+    if (!currentRates[currency] || !currentRates[newCurrency]) return false;
+
+    const multiplier = currentRates[newCurrency] / currentRates[currency];
+    triggerDatabaseConversion(multiplier);
+    
+    setCurrency(newCurrency);
+    localStorage.setItem('app_currency', newCurrency);
+    return true;
+  };
+
+  // 👇 The Centralized Formatter
+  const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency: currency,
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).format(amount);
+  };
+
+  return (
+    <SettingsContext.Provider value={{ currency, rates, lastUpdated, changeCurrency, refreshRates, formatCurrency }}>
+      {children}
+    </SettingsContext.Provider>
+  );
+};
+
+export const useSettings = () => {
+  const context = useContext(SettingsContext);
+  if (!context) throw new Error('useSettings must be used within SettingsProvider');
+  return context;
+};
 
 const ExpenseContext = createContext<ExpenseContextType | undefined>(undefined);
 const MONTHS_ORDER = ["January","February","March","April","May","June","July","August","September","October","November","December"];
@@ -166,6 +248,28 @@ export const ExpenseProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
   const deleteRecurring = (id: string) => setRecurring(prev => prev.filter(r => r.id !== id));
 
+  // --- PHASE 4: GLOBAL CURRENCY CONVERTER ---
+  const convertAllFinancialData = (multiplier: number) => {
+    // 1. Convert all historical transactions
+    setTransactions(prev => prev.map(t => ({
+      ...t,
+      amount: t.amount * multiplier
+    })));
+
+    // 2. Convert all active category budgets
+    setBudgets(prev => prev.map(b => ({
+      ...b,
+      limit: b.limit * multiplier
+    })));
+
+    // 3. Convert all future recurring bill templates
+    setRecurring(prev => prev.map(r => ({
+      ...r,
+      amount: r.amount * multiplier
+    })));
+  };
+  // ------------------------------------------
+
   const getPendingRecurring = () => {
     const today = new Date().toISOString().split('T')[0];
     return recurring.filter(r => r.nextDueDate <= today);
@@ -210,9 +314,15 @@ export const ExpenseProvider: React.FC<{ children: React.ReactNode }> = ({ child
   };
 
   const getMonthCategoryBreakdown = (monthId: string) => {
-      // BUG 1 FIX: Filter out any transaction categorized as 'Transfer'
-      const list = transactions.filter(t => t.monthId === monthId && t.type === 'expense' && t.category !== 'Transfer');
-      
+      // BUG 1 FIX: Filter out any transaction categorized as 'Transfer' 
+      const list = transactions.filter(t => {
+        if (t.monthId !== monthId || t.type !== 'expense') return false;
+        
+        const isExplicitTransfer = t.category === 'Transfer';
+        const isLegacyTransfer = t.label.toLowerCase().includes('transfer');
+
+        return !isExplicitTransfer && !isLegacyTransfer;
+      });
       const breakdown: Record<string, number> = {};
       list.forEach(t => { breakdown[t.category || 'Other'] = (breakdown[t.category || 'Other'] || 0) + t.amount; });
       
@@ -283,12 +393,12 @@ export const ExpenseProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
   return (
     <ExpenseContext.Provider value={{
-      months, accounts, transactions, categories: DEFAULT_CATEGORIES, budgets, recurring, loading, 
+      months, accounts, transactions, categories: DEFAULT_CATEGORIES, budgets, recurring, loading, addCategory,
       addMonth, addAccount, addTransaction, addTransfer, updateTransaction, deleteTransaction, 
-      setCategoryBudget, addRecurring, deleteRecurring, getPendingRecurring, approvePendingRecurring, getMonthCategoryBreakdown,
+      setCategoryBudget, addRecurring, deleteRecurring, convertAllFinancialData, getPendingRecurring, approvePendingRecurring, getMonthCategoryBreakdown,
       getAccountTransactions, getAccountMonthTotals, getMonthTotals, getTotalSavings, getMonthlySavingsHistory, 
       getMonthlyCumulativeHistory, getAllRecentTransactions, getAccountAllTimeBalance, getAccountLatestTransaction, 
-      renameAccount, removeAccount, fetchFinanceData
+      renameAccount, removeAccount, fetchFinanceData,
     }}>
       {children}
     </ExpenseContext.Provider>
