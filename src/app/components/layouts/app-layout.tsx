@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Outlet, useLocation, useNavigate } from "react-router";
-import { Home, ListOrdered, PieChart, Settings, Plus, Wallet, Calendar, ReceiptText, Check, X } from "lucide-react";
+import { Home, ListOrdered, PieChart, Settings, Plus, Wallet, Calendar, ReceiptText, Check, X, Target } from "lucide-react";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import { Label } from "../ui/label";
@@ -43,6 +43,7 @@ export function AppLayout() {
   const navItems = [
     { name: "Home", path: "/", icon: Home },
     { name: "Ledger", path: "/transactions", icon: ListOrdered },
+    { name: "Goals", path: "/goals", icon: Target },
     { name: "Insights", path: "/analytics", icon: PieChart },
     { name: "Settings", path: "/settings", icon: Settings },
   ];

@@ -23,7 +23,7 @@ export function HomePage() {
   const { 
     months, accounts, addMonth, getTotalSavings, getMonthlyCumulativeHistory, 
     getAccountMonthTotals, getAccountAllTimeBalance, getAccountLatestTransaction,
-    getPendingRecurring, approvePendingRecurring, getMonthCategoryBreakdown
+    getPendingRecurring, approvePendingRecurring, getMonthCategoryBreakdown, getFinancialHealthScore
   } = useExpenses();
   const { theme, toggleTheme } = useTheme();
   
@@ -80,6 +80,17 @@ export function HomePage() {
   const categoryData = latestMonth ? getMonthCategoryBreakdown(latestMonth.id) : [];
   const pieData = categoryData.map(d => ({ name: d.category, value: d.spent })).filter(d => d.value > 0);
 
+  const healthScore = latestMonth ? getFinancialHealthScore(latestMonth.id) : 100;
+  const getHealthStatus = (score: number) => {
+    if(score >= 80) return { label: 'Excellent', color: '#16a34a' }; 
+    if(score >= 50) return { label: 'Fair', color: '#ca8a04' }; 
+    return { label: 'Needs Attention', color: '#dc2626' }; 
+  };
+  const { label: healthLabel, color: healthColor } = getHealthStatus(healthScore);
+  const radius = 36;
+  const circumference = 2 * Math.PI * radius;
+  const strokeDashoffset = circumference - (healthScore / 100) * circumference;
+
   return (
     <div className="min-h-screen bg-background pb-20">
       
@@ -120,18 +131,20 @@ export function HomePage() {
           </Button>
         </div>
 
-        {/* Section 1: Net Wealth & Growth Chart */}
+      {/* Section 1: Net Wealth, Health Score & Growth Chart */}
         <section className="mb-10">
           <div className="bg-card rounded-2xl border border-border shadow-sm overflow-hidden">
-            <div className="grid grid-cols-1 md:grid-cols-2">
-              <div className="p-6 md:p-8 border-b md:border-b-0 md:border-r border-border">
+            <div className="grid grid-cols-1 lg:grid-cols-4">
+              
+              {/* Card 1/4: Net Wealth */}
+              <div className="p-6 md:p-8 border-b lg:border-b-0 lg:border-r border-border flex flex-col justify-center">
                 <p className="text-xs uppercase tracking-widest text-muted-foreground mb-2" style={{ fontFamily: "var(--font-mono)" }}>Net Wealth Value</p>
                 <div className="mb-3">
                   <span className="text-4xl sm:text-5xl font-semibold tracking-tight" style={{ fontFamily: "var(--font-mono)" }}>
                     {formatCurrency(totalSavings)}
                   </span>
                 </div>
-                <div className="flex items-center gap-2 mb-6">
+                <div className="flex items-center gap-2">
                   {isPositiveChange ? (
                     <div className="flex items-center gap-1 text-sm font-medium" style={{ color: green }}>
                       <TrendingUp className="h-4 w-4" /> <span style={{ fontFamily: "var(--font-mono)" }}>+{formatCurrency(monthChange)}</span>
@@ -145,8 +158,34 @@ export function HomePage() {
                 </div>
               </div>
 
-              <div className="p-6 md:p-8 flex flex-col justify-center relative">
-                <div className="absolute top-4 right-4 flex gap-1 bg-muted/50 p-1 rounded-lg">
+              {/* Card 2/4: Financial Health Gauge (NEW) */}
+              <div className="p-6 md:p-8 border-b lg:border-b-0 lg:border-r border-border flex flex-col items-center justify-center bg-muted/10">
+                <p className="text-xs uppercase tracking-widest text-muted-foreground mb-4 w-full text-center" style={{ fontFamily: "var(--font-mono)" }}>Financial Health</p>
+                <div className="relative flex items-center justify-center">
+                  <svg className="transform -rotate-90 w-24 h-24">
+                    <circle cx="48" cy="48" r={radius} stroke="currentColor" strokeWidth="8" fill="transparent" className="text-muted/20" />
+                    {/* The colored animated progress ring */}
+                    <circle 
+                      cx="48" cy="48" r={radius} 
+                      stroke={healthColor} strokeWidth="8" fill="transparent" 
+                      strokeDasharray={circumference} strokeDashoffset={strokeDashoffset} 
+                      className="transition-all duration-1000 ease-out drop-shadow-sm" 
+                      strokeLinecap="round" 
+                    />
+                  </svg>
+                  <div className="absolute flex flex-col items-center justify-center">
+                    <span className="text-2xl font-bold tracking-tighter" style={{ fontFamily: "var(--font-mono)", color: healthColor }}>{healthScore}</span>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 mt-3">
+                  <div className="w-2 h-2 rounded-full" style={{ backgroundColor: healthColor }}></div>
+                  <p className="text-sm font-medium">{healthLabel}</p>
+                </div>
+              </div>
+
+              {/* Card 3/4 & 4/4: The Growth Chart (Span 2 columns) */}
+              <div className="p-6 md:p-8 lg:col-span-2 flex flex-col justify-center relative">
+                <div className="absolute top-4 right-4 flex gap-1 bg-muted/50 p-1 rounded-lg z-10">
                   <button onClick={() => setTimeframe('6months')} className={`text-[10px] font-medium px-2 py-1 rounded-md transition-colors ${timeframe === '6months' ? 'bg-background shadow-sm text-foreground' : 'text-muted-foreground'}`}>6M</button>
                   <button onClick={() => setTimeframe('year')} className={`text-[10px] font-medium px-2 py-1 rounded-md transition-colors ${timeframe === 'year' ? 'bg-background shadow-sm text-foreground' : 'text-muted-foreground'}`}>YTD</button>
                   <button onClick={() => setTimeframe('all')} className={`text-[10px] font-medium px-2 py-1 rounded-md transition-colors ${timeframe === 'all' ? 'bg-background shadow-sm text-foreground' : 'text-muted-foreground'}`}>ALL</button>
@@ -171,6 +210,7 @@ export function HomePage() {
                   </AreaChart>
                 </ResponsiveContainer>
               </div>
+              
             </div>
           </div>
         </section>

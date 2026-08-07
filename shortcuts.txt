@@ -3,7 +3,7 @@ Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope Process
 npm run build
 
 -- Compiling for Android --
-npx cap copy android
+npx cap sync android
 Launch Android Studio | npx cap open android
 Click 'Assemble'
 Then check: D:\Code Projects\For Portfolio\Expense Tracker Design\android\app\build\outputs\apk\debug\app-debug.apk

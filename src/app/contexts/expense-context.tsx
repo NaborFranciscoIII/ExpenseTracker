@@ -20,7 +20,17 @@ interface Transaction {
 interface MonthData { id: string; month: string; year: number; }
 interface AccountData { id: string; name: string; }
 interface CategoryBudget { id: string; category: string; limit: number; }
-interface RecurringTx { id: string; type: 'income' | 'expense'; amount: number; label: string; category: string; accountId: string; nextDueDate: string; }
+interface RecurringTx { 
+  id: string; 
+  type: 'income' | 'expense' | 'transfer'; // 👈 Now supports transfers
+  frequency: 'weekly' | 'monthly' | 'yearly' | 'one-time'; // 👈 Now supports exact pacing
+  amount: number; 
+  label: string; 
+  category: string; 
+  accountId: string; 
+  toAccountId?: string; // 👈 Only used if type is 'transfer'
+  nextDueDate: string; 
+}
 
 interface ExpenseContextType {
   months: MonthData[];
@@ -34,7 +44,7 @@ interface ExpenseContextType {
   convertAllFinancialData: (multiplier: number) => void;
   addMonth: (month: string, year: number) => Promise<void>;
   addAccount: (name: string) => Promise<void>;
-  addTransaction: (accountId: string, monthId: string, tx: Omit<Transaction, 'id' | 'monthId' | 'accountId'>) => Promise<void>;
+  addTransaction: (accountId: string, monthId: string, tx: any) => Promise<boolean>;
   addTransfer: (fromAccountId: string, toAccountId: string, monthId: string, amount: number, date: string) => Promise<void>;
   updateTransaction: (accountId: string, monthId: string, txId: string, tx: any) => Promise<void>;
   deleteTransaction: (accountId: string, monthId: string, txId: string) => Promise<void>;
@@ -60,6 +70,15 @@ interface ExpenseContextType {
   renameAccount: (id: string, name: string) => Promise<void>;
   removeAccount: (id: string) => Promise<void>;
   fetchFinanceData: () => Promise<void>;
+
+  goals: SavingsGoal[];
+  addGoal: (goal: Omit<SavingsGoal, 'id'>) => void;
+  addMoneyToGoal: (id: string, amount: number) => void;
+  deleteGoal: (id: string) => void;
+  getFinancialHealthScore: (monthId: string) => number;
+
+  getSpendingInsights: (monthId: string) => string[];
+  getForecast: (monthId: string) => { predictedBalance: number; dailyBurnRate: number; safeToSpend: number };
 }
 
 interface SettingsContextType {
@@ -70,6 +89,14 @@ interface SettingsContextType {
   refreshRates: () => Promise<boolean>;
   // 👇 New dynamic formatter
   formatCurrency: (amount: number) => string; 
+}
+
+interface SavingsGoal { 
+  id: string; 
+  name: string; 
+  targetAmount: number; 
+  currentAmount: number; 
+  deadlineDate: string; 
 }
 
 const SettingsContext = createContext<SettingsContextType | undefined>(undefined);
@@ -172,6 +199,7 @@ export const ExpenseProvider: React.FC<{ children: React.ReactNode }> = ({ child
   // New Local States for Phase 3
   const [budgets, setBudgets] = useState<CategoryBudget[]>(() => { const saved = localStorage.getItem('local_budgets'); return saved ? JSON.parse(saved) : []; });
   const [recurring, setRecurring] = useState<RecurringTx[]>(() => { const saved = localStorage.getItem('local_recurring'); return saved ? JSON.parse(saved) : []; });
+  const [goals, setGoals] = useState<SavingsGoal[]>(() => { const saved = localStorage.getItem('local_goals'); return saved ? JSON.parse(saved) : []; });
   const [loading, setLoading] = useState<boolean>(false);
 
   useEffect(() => { localStorage.setItem('local_months', JSON.stringify(months)); }, [months]);
@@ -179,9 +207,146 @@ export const ExpenseProvider: React.FC<{ children: React.ReactNode }> = ({ child
   useEffect(() => { localStorage.setItem('local_transactions', JSON.stringify(transactions)); }, [transactions]);
   useEffect(() => { localStorage.setItem('local_budgets', JSON.stringify(budgets)); }, [budgets]);
   useEffect(() => { localStorage.setItem('local_recurring', JSON.stringify(recurring)); }, [recurring]);
+  useEffect(() => { localStorage.setItem('local_goals', JSON.stringify(goals)); }, [goals]);
+
+  // --- PHASE 3: GOALS & HEALTH ENGINE version 0.3 ---
+  const addGoal = (goal: Omit<SavingsGoal, 'id'>) => {
+    setGoals(prev => [...prev, { ...goal, id: `goal-${Math.random().toString(36).substr(2, 5)}` }]);
+  };
+
+  const addMoneyToGoal = (id: string, amount: number) => {
+    setGoals(prev => prev.map(g => g.id === id ? { ...g, currentAmount: g.currentAmount + amount } : g));
+  };
+
+  const deleteGoal = (id: string) => {
+    setGoals(prev => prev.filter(g => g.id !== id));
+  };
+
+  const getFinancialHealthScore = (monthId: string) => {
+    const { income, expenses } = getMonthTotals(monthId);
+    if (income === 0 && expenses === 0) return 100; // Default perfect score if no data
+    
+    let score = 100;
+    
+    // Metric 1: Savings Rate (Ideal is saving 20% or more of income)
+    const savingsRate = income > 0 ? ((income - expenses) / income) * 100 : -100;
+    if (savingsRate < 20 && savingsRate >= 0) score -= (20 - savingsRate); // Deduct points if saving less than 20%
+    if (savingsRate < 0) score -= 40; // Heavy penalty for spending more than earning
+    
+    // Metric 2: Budget Adherence
+    const categoryData = getMonthCategoryBreakdown(monthId);
+    categoryData.forEach(cat => {
+      if (cat.limit > 0 && cat.spent > cat.limit) {
+        score -= 5; // Deduct 5 points for every blown budget
+      }
+    });
+
+    return Math.max(0, Math.min(100, Math.round(score))); // Keep strictly between 0 and 100
+  };
+
+  // --- PHASE 4: FORECASTING & INSIGHTS ENGINE ---
+  
+  const getSpendingInsights = (currentMonthId: string) => {
+    const insights: string[] = [];
+    const currentIdx = months.findIndex(m => m.id === currentMonthId);
+    
+    // We need a previous month to compare against
+    if (currentIdx > 0) {
+      const prevMonthId = months[currentIdx - 1].id;
+      const currentCats = getMonthCategoryBreakdown(currentMonthId);
+      const prevCats = getMonthCategoryBreakdown(prevMonthId);
+
+      currentCats.forEach(curr => {
+        const prev = prevCats.find(p => p.category === curr.category);
+        if (prev && prev.spent > 0) {
+          const percentChange = ((curr.spent - prev.spent) / prev.spent) * 100;
+          if (percentChange > 15 && curr.spent > 100) {
+            insights.push(`Your ${curr.category} spending is up ${Math.round(percentChange)}% compared to last month.`);
+          } else if (percentChange < -15 && curr.spent > 0) {
+            insights.push(`Great job! Your ${curr.category} spending dropped ${Math.round(Math.abs(percentChange))}% from last month.`);
+          }
+        }
+      });
+    }
+
+    // Generic insights if no previous month data exists
+    const { income, expenses } = getMonthTotals(currentMonthId);
+    if (expenses > income && income > 0) {
+      insights.push("Warning: You are currently spending more than you are earning this month.");
+    } else if (expenses === 0 && income > 0) {
+      insights.push("You haven't logged any expenses yet. Keep up the perfect savings rate!");
+    }
+
+    return insights.length > 0 ? insights : ["Your spending habits are perfectly stable this month!"];
+  };
+
+  const getForecast = (monthId: string) => {
+    const { savings: currentBalance, expenses } = getMonthTotals(monthId);
+    
+    // Get total days in the current month
+    const today = new Date();
+    const isCurrentMonth = months.find(m => m.id === monthId)?.month === new Date().toLocaleString('default', { month: 'long' });
+    
+    // If we are looking at a past month, forecasting is irrelevant, just return actuals
+    if (!isCurrentMonth) return { predictedBalance: currentBalance, dailyBurnRate: 0, safeToSpend: 0 };
+
+    const daysInMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate();
+    const currentDay = today.getDate();
+    const daysRemaining = daysInMonth - currentDay;
+
+    // Calculate daily burn rate (how much spent per day so far)
+    const dailyBurnRate = currentDay > 0 ? (expenses / currentDay) : 0;
+    
+    // Predict end of month balance based on current habits
+    const predictedBalance = currentBalance - (dailyBurnRate * daysRemaining);
+    
+    // "Safe to spend" per day to reach exactly 0 (or your baseline)
+    const safeToSpend = daysRemaining > 0 ? (currentBalance / daysRemaining) : currentBalance;
+
+    return { 
+      predictedBalance: Math.max(0, predictedBalance), 
+      dailyBurnRate, 
+      safeToSpend: Math.max(0, safeToSpend) 
+    };
+  };
+  // ----------------------------------------------
 
   const fetchFinanceData = async () => { setLoading(false); };
   useEffect(() => { fetchFinanceData(); }, [isAuthenticated]);
+
+  // 👇 PASTE THIS NEW SMART CORE LOGIC HERE 👇
+  const [smartCategories, setSmartCategories] = useState<Record<string, string>>(() => {
+    const saved = localStorage.getItem('local_smart_categories');
+    return saved ? JSON.parse(saved) : {
+      "mcdonalds": "Food", "grab": "Transportation", "meralco": "Bills",
+      "netflix": "Entertainment", "grocery": "Groceries", "salary": "Salary"
+    };
+  });
+
+  useEffect(() => { localStorage.setItem('local_smart_categories', JSON.stringify(smartCategories)); }, [smartCategories]);
+
+  const autoDetectCategory = (label: string) => {
+    const lowerLabel = label.toLowerCase();
+    for (const [keyword, category] of Object.entries(smartCategories)) {
+      if (lowerLabel.includes(keyword)) return category;
+    }
+    return null;
+  };
+
+  const isDuplicateTransaction = (tx: any) => {
+    const fortyEightHours = 48 * 60 * 60 * 1000;
+    const txDate = new Date(tx.date).getTime();
+    
+    return transactions.some(existing => {
+      const existingDate = new Date(existing.date).getTime();
+      const timeDiff = Math.abs(txDate - existingDate);
+      return (
+        existing.amount === tx.amount && 
+        existing.label.toLowerCase() === tx.label.toLowerCase() &&
+        timeDiff <= fortyEightHours
+      );
+    });
+  };
 
   const sortMonthsChronologically = (monthList: MonthData[]) => {
     return [...monthList].sort((a, b) => {
@@ -209,12 +374,43 @@ export const ExpenseProvider: React.FC<{ children: React.ReactNode }> = ({ child
     setTransactions((prev) => prev.filter((t) => t.accountId !== id));
   };
 
+// --- UPDATED: addTransaction with Intelligence ---
   const addTransaction = async (accountId: string, monthId: string, tx: any) => {
+    // 1. Check for duplicates
+    if (isDuplicateTransaction(tx)) {
+      const confirm = window.confirm(`Duplicate Detected: A transaction for ${tx.label} with the same amount was logged recently. Add anyway?`);
+      if (!confirm) return false; // Abort if user cancels
+    }
+
+    // 2. Apply Smart Categories if the user left it as "Other" or blank
+    let finalCategory = tx.category;
+    if (!finalCategory || finalCategory === "Other") {
+      const detected = autoDetectCategory(tx.label);
+      if (detected) finalCategory = detected;
+    }
+
     const newTxData: Transaction = {
       id: `tx-${Math.random().toString(36).substr(2, 5)}`,
-      type: tx.type, amount: tx.amount, date: tx.date, label: tx.label, category: tx.category || 'Other', monthId, accountId
+      type: tx.type, 
+      amount: tx.amount, 
+      date: tx.date, 
+      label: tx.label, 
+      category: finalCategory || 'Other', 
+      monthId, 
+      accountId
     };
+    
     setTransactions((prev) => [...prev, newTxData]);
+    
+    // 3. Learn from user behavior! If they manually picked a category, save the first word of the label as a future keyword
+    if (tx.category && tx.category !== "Other" && !autoDetectCategory(tx.label)) {
+      const firstWord = tx.label.split(" ")[0].toLowerCase();
+      if (firstWord.length > 2) { // Ignore tiny words like "a" or "my"
+        setSmartCategories(prev => ({ ...prev, [firstWord]: tx.category }));
+      }
+    }
+    
+    return true;
   };
 
   const addTransfer = async (fromAccountId: string, toAccountId: string, monthId: string, amount: number, date: string) => {
@@ -275,14 +471,14 @@ export const ExpenseProvider: React.FC<{ children: React.ReactNode }> = ({ child
     return recurring.filter(r => r.nextDueDate <= today);
   };
 
-  // Auto-processes bills that passed their due date, creating the month if it doesn't exist
+// Auto-processes bills, transfers, and scheduled events that passed their due date
   const approvePendingRecurring = async () => {
     const pending = getPendingRecurring();
     if (pending.length === 0) return;
 
     let updatedMonths = [...months];
     const newTransactions: Transaction[] = [];
-    const updatedRecurring = [...recurring];
+    let updatedRecurring = [...recurring];
 
     pending.forEach(rec => {
       const d = new Date(rec.nextDueDate);
@@ -296,16 +492,41 @@ export const ExpenseProvider: React.FC<{ children: React.ReactNode }> = ({ child
         updatedMonths.push(targetMonth);
       }
 
-      newTransactions.push({
-        id: `tx-${Math.random().toString(36).substr(2, 5)}`,
-        type: rec.type, amount: rec.amount, date: rec.nextDueDate, label: rec.label, category: rec.category,
-        monthId: targetMonth.id, accountId: rec.accountId
-      });
+      // --- NEW: Handle Auto-Transfers vs Standard Transactions ---
+      if (rec.type === 'transfer' && rec.toAccountId) {
+        // A transfer requires TWO transactions (Money out of A, Money into B)
+        newTransactions.push({
+          id: `tx-tf-${Math.random().toString(36).substr(2, 5)}`,
+          type: 'expense', amount: rec.amount, date: rec.nextDueDate, label: rec.label, category: 'Transfer',
+          monthId: targetMonth.id, accountId: rec.accountId
+        });
+        newTransactions.push({
+          id: `tx-tf-${Math.random().toString(36).substr(2, 5)}`,
+          type: 'income', amount: rec.amount, date: rec.nextDueDate, label: rec.label, category: 'Transfer',
+          monthId: targetMonth.id, accountId: rec.toAccountId
+        });
+      } else {
+        // Standard Income/Expense
+        newTransactions.push({
+          id: `tx-${Math.random().toString(36).substr(2, 5)}`,
+          type: rec.type as 'income' | 'expense', amount: rec.amount, date: rec.nextDueDate, label: rec.label, category: rec.category,
+          monthId: targetMonth.id, accountId: rec.accountId
+        });
+      }
 
-      // Push next due date exactly 1 month forward
-      d.setMonth(d.getMonth() + 1);
-      const recIndex = updatedRecurring.findIndex(r => r.id === rec.id);
-      if (recIndex >= 0) updatedRecurring[recIndex].nextDueDate = d.toISOString().split('T')[0];
+      // --- NEW: Handle Scheduling Frequency ---
+      if (rec.frequency === 'one-time') {
+        // Delete it from the schedule forever since it only happens once
+        updatedRecurring = updatedRecurring.filter(r => r.id !== rec.id);
+      } else {
+        // Push next due date forward based on custom frequency
+        if (rec.frequency === 'weekly') d.setDate(d.getDate() + 7);
+        else if (rec.frequency === 'monthly') d.setMonth(d.getMonth() + 1);
+        else if (rec.frequency === 'yearly') d.setFullYear(d.getFullYear() + 1);
+        
+        const recIndex = updatedRecurring.findIndex(r => r.id === rec.id);
+        if (recIndex >= 0) updatedRecurring[recIndex].nextDueDate = d.toISOString().split('T')[0];
+      }
     });
 
     setMonths(sortMonthsChronologically(updatedMonths));
@@ -374,9 +595,12 @@ export const ExpenseProvider: React.FC<{ children: React.ReactNode }> = ({ child
   };
 
   const getMonthTotals = (monthId: string) => {
-    const list = transactions.filter(t => t.monthId === monthId);
-    const income = list.filter(t => t.type === 'income').reduce((sum, t) => sum + t.amount, 0);
-    const expenses = list.filter(t => t.type === 'expense').reduce((sum, t) => sum + t.amount, 0);
+    let income = 0, expenses = 0;
+    // 👇 FIX: Filter out 'Transfer' category so it doesn't inflate your spending/income
+    transactions.filter(t => t.monthId === monthId && t.category !== 'Transfer').forEach(t => {
+      if (t.type === 'income') income += t.amount;
+      else if (t.type === 'expense') expenses += t.amount;
+    });
     return { income, expenses, savings: income - expenses };
   };
 
@@ -393,7 +617,7 @@ export const ExpenseProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
   return (
     <ExpenseContext.Provider value={{
-      months, accounts, transactions, categories: DEFAULT_CATEGORIES, budgets, recurring, loading, addCategory,
+      months, accounts, transactions, categories: DEFAULT_CATEGORIES, budgets, recurring, loading, addCategory, getSpendingInsights, getForecast, goals, addGoal, addMoneyToGoal, deleteGoal, getFinancialHealthScore,
       addMonth, addAccount, addTransaction, addTransfer, updateTransaction, deleteTransaction, 
       setCategoryBudget, addRecurring, deleteRecurring, convertAllFinancialData, getPendingRecurring, approvePendingRecurring, getMonthCategoryBreakdown,
       getAccountTransactions, getAccountMonthTotals, getMonthTotals, getTotalSavings, getMonthlySavingsHistory, 
@@ -410,3 +634,7 @@ export const useExpenses = () => {
   if (!context) throw new Error('useExpenses inside Provider error');
   return context;
 };
+
+function setGoals(arg0: (prev: any) => any[]) {
+  throw new Error('Function not implemented.');
+}

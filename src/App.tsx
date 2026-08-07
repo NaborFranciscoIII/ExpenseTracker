@@ -10,6 +10,7 @@ import { HistoryPage } from '@/app/components/history-page';
 import { TransactionsHub } from '@/app/components/transactions-hub';
 import { AnalyticsPage } from '@/app/components/analytics-page';
 import { SettingsPage } from '@/app/components/settings-page';
+import { GoalsPage } from '@/app/components/goals-page';
 
 // Hardware Hook
 import { useHardwareBack } from '@/app/hooks/use-hardware-back';
@@ -30,7 +31,7 @@ export function App() {
             <Routes>
           {/* The AppLayout wraps all these routes */}
           <Route element={<AppLayout />}>
-            
+            <Route path="/goals" element={<GoalsPage />} />
             {/* Main Dashboard */}
             <Route path="/" element={<HomePage />} />
             

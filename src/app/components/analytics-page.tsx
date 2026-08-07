@@ -2,16 +2,16 @@ import { useState, useMemo } from "react";
 import { useExpenses } from "../contexts/expense-context";
 import { useSettings } from "../contexts/settings-context";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
-import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip, BarChart, Bar, XAxis, YAxis, CartesianGrid } from "recharts";
-import { PieChart as PieIcon, Target, TrendingDown } from "lucide-react";
+import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip } from "recharts";
+import { PieChart as PieIcon, Target, TrendingDown, Lightbulb, Zap, LineChart } from "lucide-react";
+import { motion } from "motion/react";
 
 const PIE_COLORS = ["#16a34a", "#2563eb", "#d97706", "#7c3aed", "#0891b2", "#db2777", "#ca8a04"];
 
 export function AnalyticsPage() {
-  const { months, getMonthCategoryBreakdown } = useExpenses();
+  const { months, getMonthCategoryBreakdown, getSpendingInsights, getForecast, getMonthTotals } = useExpenses();
   const { formatCurrency } = useSettings();
 
-  // Default to the most recent month if it exists
   const [selectedMonthId, setSelectedMonthId] = useState<string>(months.length > 0 ? months[months.length - 1].id : "");
 
   const categoryData = useMemo(() => {
@@ -20,11 +20,14 @@ export function AnalyticsPage() {
   }, [selectedMonthId, getMonthCategoryBreakdown]);
 
   const pieData = categoryData.map(d => ({ name: d.category, value: d.spent })).filter(d => d.value > 0);
-  
-  // Sort for Bar Chart (Highest spent first)
   const barData = [...categoryData].sort((a, b) => b.spent - a.spent).slice(0, 5);
 
-  const totalSpent = categoryData.reduce((sum, item) => sum + item.spent, 0);
+  // 👇 FIX: Use a fallback object matching the returned shape of getMonthTotals
+  const { expenses: totalSpent } = selectedMonthId ? getMonthTotals(selectedMonthId) : { expenses: 0 };
+  
+  // Phase 4 Intelligence
+  const insights = selectedMonthId ? getSpendingInsights(selectedMonthId) : [];
+  const forecast = selectedMonthId ? getForecast(selectedMonthId) : null;
 
   return (
     <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6 sm:py-8 pb-24">
@@ -32,7 +35,7 @@ export function AnalyticsPage() {
       {/* Header & Filter */}
       <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 mb-8">
         <div>
-          <p className="text-xs uppercase tracking-widest text-muted-foreground font-mono mb-1">Insights</p>
+          <p className="text-xs uppercase tracking-widest text-muted-foreground font-mono mb-1">Intelligence</p>
           <h1 className="text-2xl font-semibold tracking-tight">Spending Analytics</h1>
         </div>
 
@@ -57,7 +60,7 @@ export function AnalyticsPage() {
       ) : (
         <div className="space-y-6">
           
-          {/* Top Level Summary Cards */}
+          {/* PHASE 4: AI Insights & Forecasting Banner */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="bg-card border border-border p-5 rounded-2xl shadow-sm">
               <div className="flex items-center gap-2 mb-2 text-muted-foreground">
@@ -65,16 +68,52 @@ export function AnalyticsPage() {
               </div>
               <p className="text-3xl font-bold tracking-tight text-destructive">{formatCurrency(totalSpent)}</p>
             </div>
-            <div className="bg-card border border-border p-5 rounded-2xl shadow-sm md:col-span-2 flex items-center">
-              <p className="text-sm text-muted-foreground leading-relaxed">
-                This dashboard filters out internal transfers and focuses entirely on your external expenses to give you a true picture of your monthly cash flow.
-              </p>
+
+            {/* Smart Insights Box */}
+            <div className="bg-primary/10 border border-primary/20 p-5 rounded-2xl shadow-sm md:col-span-2 relative overflow-hidden">
+              <div className="flex items-center gap-2 mb-3 text-primary">
+                <Lightbulb className="h-5 w-5" /> <span className="text-sm font-bold uppercase tracking-wider">Smart Insights</span>
+              </div>
+              <ul className="space-y-2 relative z-10">
+                {insights.map((insight, i) => (
+                  <motion.li key={i} initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.1 }} className="text-sm font-medium leading-relaxed">
+                    • {insight}
+                  </motion.li>
+                ))}
+              </ul>
             </div>
           </div>
 
+          {/* PHASE 4: Advanced Forecasting Matrix */}
+          {forecast && forecast.dailyBurnRate > 0 && (
+            <div className="bg-card border border-border p-6 rounded-2xl shadow-sm">
+               <div className="flex items-center gap-2 mb-6">
+                <LineChart className="h-5 w-5 text-primary" />
+                <h2 className="text-base font-semibold">End-of-Month Forecast</h2>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 divide-y sm:divide-y-0 sm:divide-x divide-border">
+                <div className="pt-4 sm:pt-0">
+                  <p className="text-xs text-muted-foreground font-mono mb-1">Current Daily Burn</p>
+                  <p className="text-xl font-bold tracking-tight text-destructive">{formatCurrency(forecast.dailyBurnRate)} <span className="text-xs font-normal text-muted-foreground">/ day</span></p>
+                </div>
+                <div className="pt-4 sm:pt-0 sm:pl-6">
+                  <p className="text-xs text-muted-foreground font-mono mb-1">Predicted Balance</p>
+                  <p className="text-xl font-bold tracking-tight text-primary">{formatCurrency(forecast.predictedBalance)}</p>
+                </div>
+                <div className="pt-4 sm:pt-0 sm:pl-6">
+                  <div className="flex items-center gap-1.5 mb-1">
+                    <Zap className="h-3 w-3 text-amber-500" />
+                    <p className="text-xs text-muted-foreground font-mono">Safe to Spend</p>
+                  </div>
+                  <p className="text-xl font-bold tracking-tight text-amber-500">{formatCurrency(forecast.safeToSpend)} <span className="text-xs font-normal text-muted-foreground">/ day</span></p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Distribution & Budgets Grid */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             
-            {/* Pie Chart: Category Distribution */}
             <div className="bg-card border border-border rounded-2xl p-6 shadow-sm">
               <div className="flex items-center gap-2 mb-6">
                 <PieIcon className="h-5 w-5 text-primary" />
@@ -114,7 +153,6 @@ export function AnalyticsPage() {
               )}
             </div>
 
-            {/* Budget Health Bars */}
             <div className="bg-card border border-border rounded-2xl p-6 shadow-sm">
               <div className="flex items-center gap-2 mb-6">
                 <Target className="h-5 w-5 text-primary" />

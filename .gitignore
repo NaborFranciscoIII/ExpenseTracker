@@ -20,3 +20,6 @@ Thumbs.db
 # Rust build artifacts and dependency cache folders
 src-tauri/target/
 src-tauri/Cargo.lock.bak
+
+# Confidential files
+versions
