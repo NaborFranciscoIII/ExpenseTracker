@@ -1,3 +1,4 @@
+import { UpdateModal } from "../update-modal";
 import { useState } from "react";
 import { Outlet, useLocation, useNavigate } from "react-router";
 import { Home, ListOrdered, PieChart, Settings, Plus, Wallet, Calendar, ReceiptText, Check, X, Target } from "lucide-react";
@@ -123,6 +124,8 @@ export function AppLayout() {
         })}
       </nav>
 
+      {/* GLOBAL IN-APP UPDATER */}
+      <UpdateModal />
       {/* GLOBAL SPEED DIAL FAB */}
       <div className="fixed bottom-20 md:bottom-8 right-4 md:right-8 z-50 flex flex-col items-end gap-3">
         <AnimatePresence>
