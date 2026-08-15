@@ -11,3 +11,6 @@ Then check: D:\Code Projects\For Portfolio\Expense Tracker Design\android\app\bu
 -- Compiling for Windows PC --
 npx tauri build
 Then check: D:\Code Projects\For Portfolio\Expense Tracker Design\src-tauri\target\release\bundle\msi\
+
+-- client ID --
+211975122400-8e4oeeo55ei7r00jrpisigue8s4fe02c.apps.googleusercontent.com
