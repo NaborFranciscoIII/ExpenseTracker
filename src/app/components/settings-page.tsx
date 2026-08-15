@@ -39,8 +39,8 @@ export function SettingsPage() {
     else alert("Failed to reach exchange server. You may be offline.");
   };
 
-  // 👇 PHASE 3: EXPORT BACKUP
-  const handleExportBackup = () => {
+// 👇 PHASE 3: EXPORT BACKUP (Updated for Android Support)
+  const handleExportBackup = async () => {
     const backupData = {
       local_months: localStorage.getItem('local_months'),
       local_accounts: localStorage.getItem('local_accounts'),
@@ -51,13 +51,32 @@ export function SettingsPage() {
       app_currency: localStorage.getItem('app_currency'),
     };
     
-    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(backupData));
-    const downloadAnchorNode = document.createElement('a');
-    downloadAnchorNode.setAttribute("href",     dataStr);
-    downloadAnchorNode.setAttribute("download", `finance_backup_${new Date().toISOString().split('T')[0]}.json`);
-    document.body.appendChild(downloadAnchorNode);
-    downloadAnchorNode.click();
-    downloadAnchorNode.remove();
+    const jsonString = JSON.stringify(backupData, null, 2);
+    const filename = `finance_backup_${new Date().toISOString().split('T')[0]}.json`;
+
+    try {
+      // 1. Try the Native Android/iOS Share Sheet first
+      const file = new File([jsonString], filename, { type: "application/json" });
+      if (navigator.canShare && navigator.canShare({ files: [file] })) {
+        await navigator.share({ 
+          files: [file], 
+          title: "Finance Backup Export",
+          text: "Here is your local backup file for the Expense Tracker app."
+        });
+        return; // Stop here if native share succeeds
+      }
+    } catch (err) { 
+      console.log("Share API failed or was cancelled by user", err); 
+    }
+
+    // 2. Fallback for Desktop Browsers (Windows/Mac)
+    const blob = new Blob([jsonString], { type: "application/json;charset=utf-8;" });
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
   };
 
   // 👇 PHASE 3: IMPORT BACKUP

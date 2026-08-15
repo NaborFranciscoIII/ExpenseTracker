@@ -21,7 +21,7 @@ interface EditState { type: "income" | "expense"; amount: string; date: string; 
 export function HistoryPage() {
   const { monthId, accountId } = useParams<{ monthId: string; accountId: string }>();
   const navigate = useNavigate();
-  const { months, accounts, categories, getAccountTransactions, getAccountMonthTotals, addTransaction, updateTransaction, deleteTransaction } = useExpenses();
+  const { months, accounts, categories, getAccountTransactions, getAccountMonthTotals, addTransaction, updateTransaction, deleteTransaction, addCategory } = useExpenses();
   const { theme, toggleTheme } = useTheme();
   const { formatCurrency } = useSettings();
 
@@ -88,14 +88,25 @@ export function HistoryPage() {
   };
   // -------------------------
 
-  const exportCSV = () => {
+const exportCSV = async () => {
     const headers = ["Date", "Type", "Category", "Label", "Amount"];
     const rows = filteredTransactions.map(tx => `${tx.date},${tx.type},${tx.category || 'Other'},"${tx.label}",${tx.amount}`);
-    const csvContent = "data:text/csv;charset=utf-8," + [headers.join(","), ...rows].join("\n");
-    const encodedUri = encodeURI(csvContent);
+    const csvContent = [headers.join(","), ...rows].join("\n");
+    const filename = `${account.name}_${month.month}_${month.year}_export.csv`;
+
+    try {
+      const file = new File([csvContent], filename, { type: "text/csv" });
+      if (navigator.canShare && navigator.canShare({ files: [file] })) {
+        await navigator.share({ files: [file], title: "Transaction Export" });
+        return;
+      }
+    } catch (err) { console.log("Share API failed", err); }
+
+    // Fallback for Desktop Browsers
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
     const link = document.createElement("a");
-    link.setAttribute("href", encodedUri);
-    link.setAttribute("download", `${account.name}_${month.month}_${month.year}_export.csv`);
+    link.href = URL.createObjectURL(blob);
+    link.download = filename;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -118,10 +129,6 @@ export function HistoryPage() {
     setNewTx({ type: "expense", amount: "", date: "", label: "", category: "Other" });
     setAddDialogOpen(false);
   };
-
-  function addCategory(customCategoryInput: string) {
-    throw new Error("Function not implemented.");
-  }
 
   return (
     <div className="min-h-screen bg-background relative">
@@ -272,6 +279,11 @@ export function HistoryPage() {
                     if (isEditing) {
                       return (
                         <div key={`${tx.id}-edit`} className="p-4 bg-muted/30">
+                          {/* ADD THIS NEW TOGGLE ROW */}
+                          <div className="flex gap-2 mb-3">
+                            <button onClick={() => setEditState({ ...editState, type: "income" })} className="flex-1 py-1.5 rounded-md text-xs font-medium border transition-all" style={{ background: editState.type === "income" ? green : "var(--card)", color: editState.type === "income" ? "#fff" : "var(--muted-foreground)", borderColor: editState.type === "income" ? green : "var(--border)" }}>Income</button>
+                            <button onClick={() => setEditState({ ...editState, type: "expense" })} className="flex-1 py-1.5 rounded-md text-xs font-medium border transition-all" style={{ background: editState.type === "expense" ? red : "var(--card)", color: editState.type === "expense" ? "#fff" : "var(--muted-foreground)", borderColor: editState.type === "expense" ? red : "var(--border)" }}>Expense</button>
+                          </div>
                           <div className="grid grid-cols-2 gap-2 mb-3">
                             <Input value={editState.label} onChange={(e) => setEditState({...editState, label: e.target.value})} className="h-8 text-sm" />
                             <Input type="number" value={editState.amount} onChange={(e) => setEditState({...editState, amount: e.target.value})} className="h-8 text-sm" />
@@ -328,7 +340,7 @@ export function HistoryPage() {
                             <p className="text-sm font-semibold tabular-nums mr-1" style={{ fontFamily: "var(--font-mono)", color: txPos ? green : red }}>{txPos ? "+" : "−"}{formatCurrency(tx.amount)}</p>
                             <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => startEdit(tx)}><Pencil className="h-3 w-3" /></Button>
                             {/* Standard Click Delete for Desktop Users */}
-                            <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive hover:text-destructive hidden sm:flex" onClick={() => triggerDelete(tx.id)}><Trash2 className="h-3 w-3" /></Button>
+                            <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive hover:text-destructive hidden" onClick={() => triggerDelete(tx.id)}><Trash2 className="h-3 w-3" /></Button>
                           </div>
                         </motion.div>
                       </motion.div>
@@ -350,16 +362,6 @@ export function HistoryPage() {
         </section>
       </div>
 
-      {/* Floating Action Button (FAB) for Mobile */}
-      <div className="sm:hidden fixed bottom-6 right-6 z-40">
-        <Button 
-          size="icon" 
-          className="h-14 w-14 rounded-full shadow-xl bg-primary hover:bg-primary/90 text-primary-foreground"
-          onClick={() => setAddDialogOpen(true)}
-        >
-          <Plus className="h-6 w-6" />
-        </Button>
-      </div>
 
       {/* Undo Delete Toast */}
       <AnimatePresence>
