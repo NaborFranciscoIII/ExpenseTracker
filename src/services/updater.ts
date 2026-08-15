@@ -16,17 +16,19 @@ const REPO_NAME = "ExpenseTracker";
 export const checkForUpdates = async (): Promise<UpdateInfo | null> => {
   try {
     const response = await fetch(`https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/releases/latest`);
-    
     if (!response.ok) return null;
-    
     const data = await response.json();
 
-    // If the latest GitHub tag does not match our current version, an update is available!
     if (data.tag_name && data.tag_name !== CURRENT_VERSION) {
+      // 👇 NEW: Find the actual .apk file in the release assets!
+      const apkAsset = data.assets?.find((asset: any) => asset.name.endsWith('.apk'));
+      // Fallback to the web page if no APK is found
+      const directDownloadUrl = apkAsset ? apkAsset.browser_download_url : data.html_url;
+
       return {
         version: data.tag_name,
-        notes: data.body, // The markdown changelog you write on GitHub
-        url: data.html_url // The link to the release page containing the .apk or .msi
+        notes: data.body,
+        url: directDownloadUrl 
       };
     }
     return null;
