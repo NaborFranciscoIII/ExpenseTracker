@@ -1,0 +1,14 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Authenticating...</title>
+</head>
+<body>
+  <p>Returning to Expense Tracker...</p>
+  <script>
+    // Bounces the Google auth token directly into your native app
+    window.location.href = "expensetracker://auth" + window.location.hash;
+  </script>
+</body>
+</html>

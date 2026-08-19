@@ -9,6 +9,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "../ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select";
 import { motion, AnimatePresence } from "motion/react";
 import { useExpenses } from "../../contexts/expense-context";
+import { TutorialModal } from "../tutorial-modal";
 
 const MONTH_NAMES = ["January","February","March","April","May","June","July","August","September","October","November","December"];
 
@@ -126,6 +127,7 @@ export function AppLayout() {
 
       {/* GLOBAL IN-APP UPDATER */}
       <UpdateModal />
+      <TutorialModal />
       {/* GLOBAL SPEED DIAL FAB */}
       <div className="fixed bottom-20 md:bottom-8 right-4 md:right-8 z-50 flex flex-col items-end gap-3">
         <AnimatePresence>

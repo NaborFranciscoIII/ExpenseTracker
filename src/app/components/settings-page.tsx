@@ -3,7 +3,7 @@ import { useSettings } from "../contexts/settings-context";
 import { useExpenses } from "../contexts/expense-context";
 import { Button } from "./ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
-import { AlertCircle, RefreshCw, Wallet, Download, Upload, CloudUpload, CloudDownload, Info } from "lucide-react";
+import { AlertCircle, RefreshCw, Wallet, Download, Upload, CloudUpload, CloudDownload, Info, PlayCircle } from "lucide-react";
 import { loginToGoogle, pushToCloud, pullFromCloud } from "../services/google-drive";
 import { Capacitor } from '@capacitor/core';
 
@@ -223,69 +223,84 @@ const handleDriveConnect = async () => {
           </div>
         </div>
       </section>
-      {/* Only show Google Drive Sync on Web/Desktop */}
-      {/* PHASE 3: CLOUD SYNC & DATA SAFETY */}
-      {!Capacitor.isNativePlatform() && (
-        <section>
-          <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground mb-4">Cloud Sync & Data Backup</h2>
-              <div className="bg-card border border-border rounded-2xl p-5 shadow-sm">
-                
-                <div className="bg-primary/10 border border-primary/20 rounded-xl p-4 mb-5 text-sm">
-                  <div className="flex gap-2 items-start mb-2 text-primary">
-                    <Info className="h-4 w-4 mt-0.5 flex-shrink-0" />
-                    <span className="font-semibold">Manual Sync Guide (Multi-Device)</span>
-                  </div>
-                  <ol className="list-decimal list-inside space-y-1.5 ml-1 text-muted-foreground text-xs leading-relaxed">
-                    <li><strong>Push to Cloud:</strong> When you finish logging on this device, push your database to your secure Google Drive folder.</li>
-                    <li><strong>Pull from Cloud:</strong> Before logging expenses on a new device, pull your latest cloud file to sync your progress.</li>
-                  </ol>
-                  <p className="mt-3 text-[11px] font-medium text-destructive uppercase tracking-wider flex items-center gap-1">
-                    <AlertCircle className="h-3 w-3" /> Always Pull before making new changes!
-                  </p>
-                </div>
+      {/* APP TUTORIAL SECTION */}
+      <section className="mb-10">
+        <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground mb-4">Onboarding</h2>
+        <div className="bg-card border border-border rounded-2xl p-5 shadow-sm flex items-center justify-between">
+          <div>
+            <p className="text-sm font-medium">Replay App Tutorial</p>
+            <p className="text-xs text-muted-foreground mt-0.5">View the welcome guide and feature tour again.</p>
+          </div>
+          <Button 
+            variant="outline" 
+            size="sm" 
+            className="gap-2"
+            onClick={() => window.dispatchEvent(new Event("open-tutorial"))}
+          >
+            <PlayCircle className="h-4 w-4"/> Replay
+          </Button>
+        </div>
+      </section>
+{/* PHASE 3: CLOUD SYNC & DATA SAFETY */}
+      <section>
+        <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground mb-4">Cloud Sync & Data Backup</h2>
+        <div className="bg-card border border-border rounded-2xl p-5 shadow-sm">
+          
+          <div className="bg-primary/10 border border-primary/20 rounded-xl p-4 mb-5 text-sm">
+            <div className="flex gap-2 items-start mb-2 text-primary">
+              <Info className="h-4 w-4 mt-0.5 flex-shrink-0" />
+              <span className="font-semibold">Manual Sync Guide (Multi-Device)</span>
+            </div>
+            <ol className="list-decimal list-inside space-y-1.5 ml-1 text-muted-foreground text-xs leading-relaxed">
+              <li><strong>Push to Cloud:</strong> When you finish logging on this device, push your database to your secure Google Drive folder.</li>
+              <li><strong>Pull from Cloud:</strong> Before logging expenses on a new device, pull your latest cloud file to sync your progress.</li>
+            </ol>
+            <p className="mt-3 text-[11px] font-medium text-destructive uppercase tracking-wider flex items-center gap-1">
+              <AlertCircle className="h-3 w-3" /> Always Pull before making new changes!
+            </p>
+          </div>
 
-                <div className="divide-y divide-border">
-                  {!driveToken ? (
-                    <div className="py-4 flex justify-center">
-                      <Button onClick={handleDriveConnect} className="w-full sm:w-auto gap-2">
-                        <CloudUpload className="h-4 w-4" /> Connect Google Drive
-                      </Button>
-                    </div>
-                  ) : (
-                    <>
-                      <div className="flex items-center justify-between pb-4">
-                        <div>
-                          <p className="text-sm font-medium text-emerald-600 dark:text-emerald-500">Drive Connected</p>
-                          <p className="text-xs text-muted-foreground mt-0.5">Your secure AppData tunnel is active.</p>
-                        </div>
-                        <Button onClick={() => setDriveToken(null)} variant="ghost" size="sm" className="text-destructive h-8 px-2">
-                          Disconnect
-                        </Button>
-                      </div>
-                      <div className="flex items-center justify-between py-4">
-                        <div>
-                          <p className="text-sm font-medium">Push to Cloud</p>
-                          <p className="text-xs text-muted-foreground mt-0.5">Securely upload local data to Drive.</p>
-                        </div>
-                        <Button onClick={handleCloudPush} disabled={isSyncing} variant="outline" size="sm" className="gap-2 shadow-sm border-primary/30 hover:bg-primary/10">
-                          <CloudUpload className="h-4 w-4"/> {isSyncing ? "Syncing..." : "Push"}
-                        </Button>
-                      </div>
-                      <div className="flex items-center justify-between pt-4">
-                        <div>
-                          <p className="text-sm font-medium">Pull from Cloud</p>
-                          <p className="text-xs text-muted-foreground mt-0.5 text-destructive">Overwrites current device data.</p>
-                        </div>
-                        <Button onClick={handleCloudPull} disabled={isSyncing} variant="outline" size="sm" className="gap-2 shadow-sm border-destructive/30 hover:bg-destructive/10">
-                          <CloudDownload className="h-4 w-4"/> {isSyncing ? "Syncing..." : "Pull"}
-                        </Button>
-                      </div>
-                    </>
-                  )}
-                </div>
+          <div className="divide-y divide-border">
+            {!driveToken ? (
+              <div className="py-4 flex justify-center">
+                <Button onClick={handleDriveConnect} className="w-full sm:w-auto gap-2">
+                  <CloudUpload className="h-4 w-4" /> Connect Google Drive
+                </Button>
               </div>
-        </section>
-      )}
+            ) : (
+              <>
+                <div className="flex items-center justify-between pb-4">
+                  <div>
+                    <p className="text-sm font-medium text-emerald-600 dark:text-emerald-500">Drive Connected</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">Your secure AppData tunnel is active.</p>
+                  </div>
+                  <Button onClick={() => setDriveToken(null)} variant="ghost" size="sm" className="text-destructive h-8 px-2">
+                    Disconnect
+                  </Button>
+                </div>
+                <div className="flex items-center justify-between py-4">
+                  <div>
+                    <p className="text-sm font-medium">Push to Cloud</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">Securely upload local data to Drive.</p>
+                  </div>
+                  <Button onClick={handleCloudPush} disabled={isSyncing} variant="outline" size="sm" className="gap-2 shadow-sm border-primary/30 hover:bg-primary/10">
+                    <CloudUpload className="h-4 w-4"/> {isSyncing ? "Syncing..." : "Push"}
+                  </Button>
+                </div>
+                <div className="flex items-center justify-between pt-4">
+                  <div>
+                    <p className="text-sm font-medium">Pull from Cloud</p>
+                    <p className="text-xs text-muted-foreground mt-0.5 text-destructive">Overwrites current device data.</p>
+                  </div>
+                  <Button onClick={handleCloudPull} disabled={isSyncing} variant="outline" size="sm" className="gap-2 shadow-sm border-destructive/30 hover:bg-destructive/10">
+                    <CloudDownload className="h-4 w-4"/> {isSyncing ? "Syncing..." : "Pull"}
+                  </Button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      </section>
     </div>
   );
 }
