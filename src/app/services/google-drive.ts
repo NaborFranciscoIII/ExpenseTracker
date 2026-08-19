@@ -1,9 +1,47 @@
 // src/app/services/google-drive.ts
 
+import { Browser } from '@capacitor/browser';
+import { App as CapacitorApp } from '@capacitor/app';
+
 // ⚠️ PASTE YOUR CLIENT ID HERE
 const CLIENT_ID = "211975122400-8e4oeeo55ei7r00jrpisigue8s4fe02c.apps.googleusercontent.com";
 const SCOPES = "https://www.googleapis.com/auth/drive.appdata";
 const FILE_NAME = "finance_backup.json";
+
+
+// ⚠️ Update this to your live deployed bridge URL
+const REDIRECT_URI = "https://cloud-sync-redirect.vercel.app/"; 
+
+export const loginToGoogleMobile = async (): Promise<string> => {
+  return new Promise(async (resolve, reject) => {
+    try {
+      const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${CLIENT_ID}&redirect_uri=${REDIRECT_URI}&response_type=token&scope=${SCOPES}`;
+
+      // 1. Start listening for the deep link bounce-back
+      const listener = await CapacitorApp.addListener('appUrlOpen', (data) => {
+        if (data.url.includes('expensetracker://auth')) {
+          const hash = data.url.split('#')[1];
+          if (hash) {
+            const params = new URLSearchParams(hash);
+            const token = params.get('access_token');
+            if (token) {
+              Browser.close(); // Close the system browser
+              listener.remove(); // Clean up memory
+              resolve(token);
+              return;
+            }
+          }
+          reject("Token extraction failed.");
+        }
+      });
+
+      // 2. Open the system browser
+      await Browser.open({ url: authUrl });
+    } catch (err) {
+      reject("Failed to initialize mobile auth flow.");
+    }
+  });
+};
 
 declare global {
   interface Window {

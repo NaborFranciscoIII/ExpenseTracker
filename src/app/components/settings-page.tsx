@@ -15,10 +15,13 @@ export function SettingsPage() {
 
 const handleDriveConnect = async () => {
     try {
-      const token = await loginToGoogle();
+      // Use the Deep Link flow on mobile, and the standard popup on Web/Desktop
+      const token = Capacitor.isNativePlatform() 
+        ? await loginToGoogleMobile() 
+        : await loginToGoogle();
+      
       setDriveToken(token);
     } catch (err) {
-      // 👇 Show the exact error message instead of the generic one
       alert(`Connection Error: ${err}`); 
     }
   };
